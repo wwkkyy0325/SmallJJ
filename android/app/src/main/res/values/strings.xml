@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SmallJJ 健康</string>
+    <string name="shortcut_weight_morning">记早上体重</string>
+    <string name="shortcut_weight_evening">记晚上体重</string>
+    <string name="shortcut_food">记饮食</string>
+    <string name="shortcut_budget">今天还能吃多少</string>
+    <string name="shortcut_period">记经期开始</string>
+</resources>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  长按桌面图标出来的快捷方式（系统上限 5 条）。
+  全部走同一个 deep link，不需要额外权限，也不经过小布审批。
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="weight_morning"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_weight_morning"
+        android:shortcutLongLabel="@string/shortcut_weight_morning">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.smalljj.health_app"
+            android:targetClass="com.smalljj.health_app.MainActivity"
+            android:data="smalljj://weight?slot=morning" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="weight_evening"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_weight_evening"
+        android:shortcutLongLabel="@string/shortcut_weight_evening">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.smalljj.health_app"
+            android:targetClass="com.smalljj.health_app.MainActivity"
+            android:data="smalljj://weight?slot=evening" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="log_food"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_food"
+        android:shortcutLongLabel="@string/shortcut_food">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.smalljj.health_app"
+            android:targetClass="com.smalljj.health_app.MainActivity"
+            android:data="smalljj://food" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="ask_budget"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_budget"
+        android:shortcutLongLabel="@string/shortcut_budget">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.smalljj.health_app"
+            android:targetClass="com.smalljj.health_app.MainActivity"
+            android:data="smalljj://query?what=budget" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="period_start"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_period"
+        android:shortcutLongLabel="@string/shortcut_period">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.smalljj.health_app"
+            android:targetClass="com.smalljj.health_app.MainActivity"
+            android:data="smalljj://period?action=start" />
+    </shortcut>
+</shortcuts>
