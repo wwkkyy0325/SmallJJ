@@ -10,9 +10,6 @@ HealthRepository buildRepo({DateTime? at}) {
     birthYear: 1996,
     heightCm: 165,
     activityLevel: 'light',
-    goalMode: 'lose',
-    goalRateKgWeek: 0.5,
-    goalWeightKg: 58,
   ));
   return repo;
 }
@@ -109,7 +106,7 @@ void main() {
     expect(repo.intakeForDate('2026-01-15'), 0);
   });
 
-  test('当日预算落库后不再被改资料改写', () {
+  test('当日估算落库后不再被改资料改写', () {
     final repo = buildRepo();
     repo.saveWeight(at: DateTime(2026, 1, 15, 8), weightKg: 60);
     final before = repo.targetFor('2026-01-15');
@@ -117,12 +114,10 @@ void main() {
       birthYear: 1996,
       heightCm: 165,
       activityLevel: 'moderate',
-      goalMode: 'maintain',
-      goalRateKgWeek: 0.5,
     ));
     final after = repo.targetFor('2026-01-15');
     expect(after.tdee, before.tdee);
-    expect(after.intakeBudget, before.intakeBudget);
+    expect(after.proteinG, before.proteinG);
     // 明确要求重算时才变
     final recomputed = repo.targetFor('2026-01-15', recompute: true);
     expect(recomputed.tdee, greaterThan(before.tdee));
@@ -147,13 +142,13 @@ void main() {
     expect(insights.first.code, 'intake_empty');
   });
 
-  test('超预算会给出警示并带证据数字', () {
+  test('吃得比估算消耗多时给中性提示并带证据数字', () {
     final repo = buildRepo();
     repo.saveWeight(at: DateTime(2026, 1, 15, 8), weightKg: 60);
     final target = repo.targetFor('2026-01-15');
     final cake = repo.searchFoods('奶油蛋糕').first;
-    // 用足量把热量顶穿预算
-    final grams = (target.intakeBudget + 200) / cake.kcalPer100g * 100;
+    // 用足量把热量顶过估算消耗
+    final grams = (target.tdee + 200) / cake.kcalPer100g * 100;
     repo.addMealItem(
       localDate: '2026-01-15',
       slot: MealSlot.dinner,
@@ -163,7 +158,10 @@ void main() {
     final insights = repo.insights();
     final over = insights.where((i) => i.code == 'intake_over');
     expect(over, isNotEmpty);
-    expect(over.first.evidence['budget'], isA<int>());
+    // 口径是「吃的 vs 估算消耗」，不再是「吃的 vs 预算」
+    expect(over.first.severity, 'info');
+    expect(over.first.evidence['tdee'], isA<int>());
+    expect(over.first.evidence['intake'], isA<int>());
   });
 
   test('7 天有体重但摄入缺失时不给自适应 TDEE', () {

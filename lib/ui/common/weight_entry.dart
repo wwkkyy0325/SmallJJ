@@ -286,12 +286,7 @@ class _WeightEntryFormState extends State<WeightEntryForm> {
 
   double _latestKg() {
     final model = widget.model;
-    return normalizeKg(
-      (model.repo.latestWeightKg() ??
-              model.profile?.goalWeightKg ??
-              60)
-          .toDouble(),
-    );
+    return normalizeKg(model.repo.latestWeightKg() ?? 60);
   }
 
   @override

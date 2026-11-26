@@ -19,15 +19,15 @@ enum MealSlot {
 
 /// 身体资料。**没有性别字段**：这个应用只服务女性，BMR 固定用 Mifflin-St Jeor
 /// 的女式，问一句「男/女」只会多一次点击、多一个可能填错的字段。
+///
+/// 也**没有目标字段**：不问减脂/增重，不问目标体重和每周速率。这个应用只做
+/// 测量和统计——今天吃了多少、消耗大约多少，不加计划值去评判。
 @immutable
 class Profile {
   const Profile({
     required this.birthYear,
     required this.heightCm,
     required this.activityLevel,
-    required this.goalMode,
-    required this.goalRateKgWeek,
-    this.goalWeightKg,
     this.periodTracking = true,
     this.aiNarration = true,
   });
@@ -38,10 +38,6 @@ class Profile {
   /// sedentary / light / moderate / active
   final String activityLevel;
 
-  /// lose / maintain / gain
-  final String goalMode;
-  final double goalRateKgWeek;
-  final double? goalWeightKg;
   final bool periodTracking;
   final bool aiNarration;
 
@@ -49,9 +45,6 @@ class Profile {
     int? birthYear,
     double? heightCm,
     String? activityLevel,
-    String? goalMode,
-    double? goalRateKgWeek,
-    double? goalWeightKg,
     bool? periodTracking,
     bool? aiNarration,
   }) {
@@ -59,9 +52,6 @@ class Profile {
       birthYear: birthYear ?? this.birthYear,
       heightCm: heightCm ?? this.heightCm,
       activityLevel: activityLevel ?? this.activityLevel,
-      goalMode: goalMode ?? this.goalMode,
-      goalRateKgWeek: goalRateKgWeek ?? this.goalRateKgWeek,
-      goalWeightKg: goalWeightKg ?? this.goalWeightKg,
       periodTracking: periodTracking ?? this.periodTracking,
       aiNarration: aiNarration ?? this.aiNarration,
     );
@@ -170,35 +160,36 @@ class MealSection {
   double get proteinG => items.fold(0.0, (sum, item) => sum + item.proteinG);
 }
 
-/// 每日预算快照。落库后在同一天内保持稳定，历史和「今天」不会因为
-/// 算法或新补录的数据而改写当天的结论。
+/// 当天的估算快照。落库后在同一天内保持稳定，历史和「今天」不会因为算法或
+/// 新补录的数据而改写当天的结论。
+///
+/// 只有实测口径：BMR、估算消耗、三餐参考克数。没有预算、缺口这类计划值。
 @immutable
 class DayTarget {
   const DayTarget({
     required this.localDate,
     required this.bmr,
     required this.tdee,
-    required this.intakeBudget,
-    required this.deficitKcal,
     required this.proteinG,
     required this.carbG,
     required this.fatG,
     required this.algoVersion,
-    this.note,
   });
 
   final String localDate;
   final double bmr;
   final double tdee;
-  final double intakeBudget;
-  final double deficitKcal;
   final double proteinG;
   final double carbG;
   final double fatG;
   final String algoVersion;
-  final String? note;
 
-  double get intakeCap => intakeBudget;
+  /// 今日消耗是用「能量平衡反解」校正过的（不只是公式）。
+  ///
+  /// 记在 [algoVersion] 里而不是加一列：老库里的 `v1` 天然就是「没校正」。
+  ///
+  /// 界面不显示它：同一张卡上「每日消耗」只是一个数字，讲清来源反而更难懂。
+  bool get tdeeAdaptive => algoVersion.contains('adaptive');
 }
 
 @immutable

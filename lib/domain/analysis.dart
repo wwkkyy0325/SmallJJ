@@ -11,8 +11,6 @@ class HealthFacts {
     required this.today,
     required this.profile,
     required this.tdee,
-    required this.intakeBudget,
-    required this.deficitKcal,
     required this.proteinTargetG,
     required this.todayIntake,
     required this.todayItemCount,
@@ -31,8 +29,6 @@ class HealthFacts {
   final DateTime today;
   final Profile profile;
   final double tdee;
-  final double intakeBudget;
-  final double deficitKcal;
   final double proteinTargetG;
   final double todayIntake;
   final int todayItemCount;
@@ -47,7 +43,6 @@ class HealthFacts {
   final int? cycleDay;
   final bool inPeriodWindow;
 
-  double get remainingKcal => intakeBudget - todayIntake;
   double? get bmiValue => currentWeightKg == null
       ? null
       : bmi(weightKg: currentWeightKg!, heightCm: profile.heightCm);
@@ -64,73 +59,57 @@ List<Insight> runAnalysis(HealthFacts f) {
     out.add(const Insight(
       code: 'intake_empty',
       severity: 'action',
-      text: '今天还没有饮食记录。记一条，热量缺口才算得准。',
+      text: '今天还没有饮食记录。记一条，消耗对比才算得出来。',
     ));
   }
 
-  // 2. 今天超预算
-  if (f.todayItemCount > 0 && f.todayIntake > f.intakeBudget + 50) {
-    final over = f.todayIntake - f.intakeBudget;
+  // 2. 今天吃得比估算消耗多
+  if (f.todayItemCount > 0 && f.todayIntake > f.tdee + 50) {
+    final over = f.todayIntake - f.tdee;
     out.add(Insight(
       code: 'intake_over',
-      severity: 'warn',
-      text: '今天超出预算 ${over.round()} kcal。'
-          '不用补偿性断食，明天按预算吃就行。',
-      evidence: {'intake': f.todayIntake.round(), 'budget': f.intakeBudget.round()},
+      severity: 'info',
+      text: '今天吃的比估算消耗多 ${over.round()} kcal。单日波动说明不了什么，'
+          '看一周的平均更准。',
+      evidence: {'intake': f.todayIntake.round(), 'tdee': f.tdee.round()},
     ));
   }
 
-  // 3. 摄入明显过低
-  if (f.todayItemCount > 0 && f.todayIntake < intakeFloorFemale) {
+  // 3. 摄入偏低：只在夜里说，而且只说数——白天没记全不是「吃得少」
+  if (f.todayItemCount > 0 &&
+      f.todayIntake < intakeFloorFemale &&
+      f.today.hour >= 20) {
     out.add(Insight(
       code: 'intake_too_low',
-      severity: 'warn',
-      text: '今天只记到 ${f.todayIntake.round()} kcal，低于摄入下限。'
-          '长期吃这么少会掉肌肉、代谢下降。',
+      severity: 'info',
+      text: '今天一共记到 ${f.todayIntake.round()} kcal，偏少。'
+          '如果确实吃这么多，长期下来容易掉肌肉、代谢下降；'
+          '如果只是没记全，补上当天更准。',
       evidence: {'intake': f.todayIntake.round()},
     ));
   }
 
-  // 4. 体重速率 vs 目标速率
+  // 4. 一周变化幅度过大（只陈述，比对的是「常见幅度」而不是目标）
   final rate = f.weightTrendKgPerWeek;
-  if (rate != null && f.profile.goalMode == 'lose') {
-    final target = -f.profile.goalRateKgWeek;
-    final diff = rate - target;
-    if (diff.abs() <= 0.3) {
-      out.add(Insight(
-        code: 'rate_on_track',
-        severity: 'info',
-        text: '趋势 ${rate.toStringAsFixed(2)} kg/周，和目标 ${target.toStringAsFixed(2)} 一致，保持。',
-        evidence: {'rate': rate, 'target': target},
-      ));
-    } else if (diff < -0.3) {
-      out.add(Insight(
-        code: 'rate_fast',
-        severity: 'warn',
-        text: '掉得比计划快（${rate.toStringAsFixed(2)} kg/周）。'
-            '多数是水分和糖原，别把预算再往下压。',
-        evidence: {'rate': rate, 'target': target},
-      ));
-    } else {
-      out.add(Insight(
-        code: 'rate_slow',
-        severity: 'info',
-        text: '趋势 ${rate.toStringAsFixed(2)} kg/周，比目标慢。'
-            '先看这周记录是否齐全，再决定要不要动预算。',
-        evidence: {'rate': rate, 'target': target},
-      ));
-    }
+  if (rate != null && rate.abs() > 1.0) {
+    out.add(Insight(
+      code: 'rate_extreme',
+      severity: 'info',
+      text: '一周变化 ${rate.toStringAsFixed(2)} kg，偏大。'
+          '多数是水分和糖原，看四周的趋势更准。',
+      evidence: {'rate': rate},
+    ));
   }
 
-  // 5. 蛋白不足
+  // 5. 蛋白偏低（和按体重给的参考量比，不是必须达到的目标）
   if (f.intakeLoggedDays7 >= 3 && f.proteinAvg7d > 0) {
     final ratio = f.proteinAvg7d / f.proteinTargetG;
     if (ratio < 0.8) {
       out.add(Insight(
         code: 'protein_low',
         severity: 'info',
-        text: '近 7 天蛋白平均 ${f.proteinAvg7d.round()} g，'
-            '目标 ${f.proteinTargetG.round()} g。缺口期蛋白不够容易掉肌肉。',
+        text: '近 7 天蛋白平均 ${f.proteinAvg7d.round()} g，按体重约 '
+            '${f.proteinTargetG.round()} g 是常见参考量。',
         evidence: {'avg': f.proteinAvg7d.round(), 'target': f.proteinTargetG.round()},
       ));
     }
@@ -181,7 +160,7 @@ List<Insight> runAnalysis(HealthFacts f) {
     out.add(Insight(
       code: 'bmi_low',
       severity: 'warn',
-      text: 'BMI ${bmiValue.toStringAsFixed(1)}，已偏低，减脂缺口默认关闭。',
+      text: 'BMI ${bmiValue.toStringAsFixed(1)}，偏低。',
       evidence: {'bmi': double.parse(bmiValue.toStringAsFixed(1))},
     ));
   }
@@ -191,7 +170,7 @@ List<Insight> runAnalysis(HealthFacts f) {
     out.add(Insight(
       code: 'streak',
       severity: 'info',
-      text: '已连续记录 ${f.streakDays} 天。数据越完整，缺口和趋势越可信。',
+      text: '已连续记录 ${f.streakDays} 天。数据越完整，估算越准。',
       evidence: {'streak': f.streakDays},
     ));
   }

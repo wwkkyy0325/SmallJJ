@@ -58,7 +58,7 @@ class AppModel extends ChangeNotifier {
 
   void saveProfile(Profile p) {
     repo.saveProfile(p);
-    // 资料变了，今天的预算要跟着变；历史快照不动。
+    // 资料变了，今天的估算要跟着变；历史快照不动。
     repo.targetFor(todayKey, recompute: true);
     reload();
   }
@@ -75,7 +75,7 @@ class AppModel extends ChangeNotifier {
       bodyFatPct: bodyFat,
       id: id,
     );
-    // 体重变了，当天的预算要跟着重算（历史快照不动）。
+    // 体重变了，当天的估算要跟着重算（历史快照不动）。
     repo.targetFor(repoDateKey(at), recompute: true);
     reload();
     return saved;
@@ -83,6 +83,9 @@ class AppModel extends ChangeNotifier {
 
   void deleteWeight(int id) {
     repo.deleteWeight(id);
+    // 体重是 BMR 的输入，删掉一条和记一笔一样会改变「今天大概消耗多少」，
+    // 所以同样重算当天快照；历史快照不动。
+    if (profile != null) repo.targetFor(todayKey, recompute: true);
     reload();
   }
 

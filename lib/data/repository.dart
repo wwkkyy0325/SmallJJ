@@ -29,9 +29,6 @@ class HealthRepository {
       birthYear: r['birth_year'] as int,
       heightCm: (r['height_cm'] as num).toDouble(),
       activityLevel: r['activity_level'] as String,
-      goalMode: r['goal_mode'] as String,
-      goalRateKgWeek: (r['goal_rate_kg_week'] as num).toDouble(),
-      goalWeightKg: (r['goal_weight_kg'] as num?)?.toDouble(),
       periodTracking: (r['period_tracking'] as int) == 1,
       aiNarration: (r['ai_narration'] as int) == 1,
     );
@@ -54,9 +51,10 @@ class HealthRepository {
         p.birthYear,
         p.heightCm,
         p.activityLevel,
-        p.goalMode,
-        p.goalWeightKg,
-        p.goalRateKgWeek,
+        // 老表还留着目标三列（省一次迁移）。应用不再有目标：写死中性值。
+        'maintain',
+        null,
+        0,
         p.periodTracking ? 1 : 0,
         p.aiNarration ? 1 : 0,
         now.millisecondsSinceEpoch,
@@ -363,7 +361,7 @@ class HealthRepository {
     return rows.first['c'] as int;
   }
 
-  // ── 每日预算 ───────────────────────────────────────────────────────────
+  // ── 每日估算 ───────────────────────────────────────────────────────────
   DayTarget? storedTarget(String localDate) {
     final rows =
         db.select('SELECT * FROM day_target WHERE local_date = ?', [localDate]);
@@ -373,17 +371,14 @@ class HealthRepository {
       localDate: r['local_date'] as String,
       bmr: (r['bmr'] as num).toDouble(),
       tdee: (r['tdee'] as num).toDouble(),
-      intakeBudget: (r['intake_budget'] as num).toDouble(),
-      deficitKcal: (r['deficit_kcal'] as num).toDouble(),
       proteinG: (r['protein_g'] as num).toDouble(),
       carbG: (r['carb_g'] as num).toDouble(),
       fatG: (r['fat_g'] as num).toDouble(),
       algoVersion: r['algo_version'] as String,
-      note: r['note'] as String?,
     );
   }
 
-  /// 当天预算只算一次并落库。历史页面因此不会被新算法改写。
+  /// 当天估算只算一次并落库。历史页面因此不会被新算法改写。
   DayTarget targetFor(String localDate, {bool recompute = false}) {
     if (!recompute) {
       final stored = storedTarget(localDate);
@@ -393,7 +388,7 @@ class HealthRepository {
     if (p == null) {
       throw StateError('还没有用户资料，先完成引导');
     }
-    final weight = weightOnOrBefore(localDate) ?? p.goalWeightKg ?? 60;
+    final weight = weightOnOrBefore(localDate) ?? 60;
     final plan = planEnergy(
       profile: p,
       weightKg: weight,
@@ -404,14 +399,13 @@ class HealthRepository {
       localDate: localDate,
       bmr: plan.bmr,
       tdee: plan.tdee,
-      intakeBudget: plan.intakeBudget,
-      deficitKcal: plan.deficitKcal,
       proteinG: plan.proteinG,
       carbG: plan.carbG,
       fatG: plan.fatG,
-      algoVersion: 'v1',
-      note: plan.note.isEmpty ? null : plan.note,
+      algoVersion: plan.adaptiveWeight > 0 ? 'v1+adaptive' : 'v1',
     );
+    // 老表的 intake_budget / deficit_kcal / note 三列还在（省一次迁移），
+    // 现在不再有计划和封顶：预算列写估算消耗、缺口列写 0、提示写空。
     db.execute(
       'INSERT OR REPLACE INTO day_target (local_date, bmr, tdee, '
       'intake_budget, deficit_kcal, protein_g, carb_g, fat_g, algo_version, '
@@ -420,13 +414,13 @@ class HealthRepository {
         target.localDate,
         target.bmr,
         target.tdee,
-        target.intakeBudget,
-        target.deficitKcal,
+        target.tdee,
+        0,
         target.proteinG,
         target.carbG,
         target.fatG,
         target.algoVersion,
-        target.note,
+        null,
         now.millisecondsSinceEpoch,
       ],
     );
@@ -542,8 +536,6 @@ class HealthRepository {
       today: current,
       profile: p,
       tdee: target.tdee,
-      intakeBudget: target.intakeBudget,
-      deficitKcal: target.deficitKcal,
       proteinTargetG: target.proteinG,
       todayIntake: intakeForDate(key),
       todayItemCount: itemCountForDate(key),

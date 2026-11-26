@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/models.dart';
+import '../domain/energy.dart';
 import '../theme/tokens.dart';
 import 'common/pressable.dart';
 import 'common/surface_card.dart';
@@ -25,15 +26,22 @@ class TodayPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final target = model.target;
     final facts = model.facts;
-    final profile = model.profile;
-    if (target == null || facts == null || profile == null) {
+    if (target == null || facts == null) {
       return const Center(child: Text('还没有资料'));
     }
-    final remaining = target.intakeBudget - facts.todayIntake;
-    final intakeRatio = (facts.todayIntake / target.intakeBudget)
-        .clamp(0.0, 1.0)
-        .toDouble();
-    final over = facts.todayIntake > target.intakeBudget;
+    final balance = DayBalance(
+      intakeKcal: facts.todayIntake,
+      expenditureKcal: target.tdee,
+    );
+    // 只描述当天这两个数的差，不分好坏、不用红绿：少和多都只是数据。
+    // 一条饮食都没记的时候不报差值——「比估算消耗少 1953」在早上只是噪音。
+    final gapText = facts.todayIntake < 1
+        ? '今天还没记饮食'
+        : balance.magnitudeKcal < 1
+        ? '和估算消耗持平'
+        : balance.isSurplus
+        ? '比估算消耗多 ${kcalLabel(balance.magnitudeKcal)} kcal'
+        : '比估算消耗少 ${kcalLabel(balance.magnitudeKcal)} kcal';
 
     return RefreshIndicator(
       onRefresh: () async => model.reload(),
@@ -67,7 +75,7 @@ class TodayPage extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.md),
 
-          // ── 热量：首屏第一张卡，今天还能吃多少 ──────────────────
+          // ── 热量：今天吃了多少、占估算消耗多少 ──────────────────
           SurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,13 +83,10 @@ class TodayPage extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        over ? '超出预算' : '今天还能吃',
-                        style: AppType.label,
-                      ),
+                      child: Text('今日摄入', style: AppType.label),
                     ),
                     Text(
-                      '预算 ${kcalLabel(target.intakeBudget)} kcal',
+                      '估算消耗 ${kcalLabel(target.tdee)}',
                       style: AppType.bodySmall,
                     ),
                   ],
@@ -92,51 +97,20 @@ class TodayPage extends StatelessWidget {
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
-                      kcalLabel(remaining.abs()),
-                      style: AppType.ringNumber.copyWith(
-                        color: over ? AppColor.heart : AppColor.ink,
-                      ),
+                      kcalLabel(facts.todayIntake),
+                      style: AppType.ringNumber,
                     ),
                     const SizedBox(width: AppSpace.xxs),
                     Text('kcal', style: AppType.bodySmall),
                   ],
                 ),
                 const SizedBox(height: AppSpace.sm),
-                ClipRRect(
-                  borderRadius: AppRadius.pillAll,
-                  child: LinearProgressIndicator(
-                    value: intakeRatio,
-                    minHeight: 10,
-                    backgroundColor: AppColor.surfaceMuted,
-                    valueColor: AlwaysStoppedAnimation(
-                      over ? AppColor.heart : AppColor.brand,
-                    ),
-                  ),
+                ProgressBar(
+                  value: balance.ratio,
+                  height: AppMeter.height,
                 ),
-                const SizedBox(height: AppSpace.md),
-                Row(
-                  children: [
-                    _Stat(label: '已摄入', value: kcalLabel(facts.todayIntake)),
-                    _Stat(label: '每日消耗', value: kcalLabel(target.tdee)),
-                    _Stat(label: '缺口', value: kcalLabel(target.deficitKcal)),
-                  ],
-                ),
-                if (target.note != null) ...[
-                  const SizedBox(height: AppSpace.sm),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.info_outline_rounded,
-                        size: AppIcon.sm,
-                        color: AppColor.amber,
-                      ),
-                      const SizedBox(width: AppSpace.xxs),
-                      Expanded(
-                        child: Text(target.note!, style: AppType.bodySmall),
-                      ),
-                    ],
-                  ),
-                ],
+                const SizedBox(height: AppSpace.xs),
+                Text(gapText, style: AppType.bodySmall),
               ],
             ),
           ),
@@ -170,27 +144,6 @@ class TodayPage extends StatelessWidget {
             style: AppType.bodySmall,
             textAlign: TextAlign.center,
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: AppType.label),
-          const SizedBox(height: AppSpace.xxs),
-          Text(value, style: AppType.stat),
         ],
       ),
     );

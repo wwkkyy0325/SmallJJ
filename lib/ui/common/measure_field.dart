@@ -4,7 +4,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import 'kg_input.dart';
 
-/// 带单位的数值输入框：体重 kg、目标体重 kg、身高 cm 都是这一个。
+/// 带单位的数值输入框：体重 kg、身高 cm 都是这一个。
 ///
 /// 三件事在这里定死，页面上不再各写一套：
 /// - 高度 [AppLayout.fieldHeight]：和主按钮同高，上下相邻时看起来是一套；

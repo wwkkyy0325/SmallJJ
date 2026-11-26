@@ -193,8 +193,8 @@ class IntentRouter {
   void _query(BuildContext context, SmalljjLink link) {
     final what = (link.firstOf(['what', 'q', '问']) ?? 'all').toLowerCase();
     final parts = <String>[];
-    if (what == 'all' || what == 'budget' || what == '吃') {
-      parts.add(_budgetSentence());
+    if (what == 'all' || what == 'intake' || what == 'budget' || what == '吃') {
+      parts.add(_intakeSentence());
     }
     if (what == 'all' || what == 'weight' || what == '体重') {
       parts.add(_weightSentence());
@@ -202,22 +202,26 @@ class IntentRouter {
     if (what == 'all' || what == 'cycle' || what == '经期') {
       parts.add(_cycleSentence());
     }
-    if (parts.isEmpty) parts.add(_budgetSentence());
+    if (parts.isEmpty) parts.add(_intakeSentence());
     final text = parts.join('；');
     onTab(0);
     _snack(context, text, seconds: 8);
     AppIntents.speak(text);
   }
 
-  String _budgetSentence() {
+  String _intakeSentence() {
     final target = model.target;
     final intake = model.repo.intakeForDate(model.todayKey);
     if (target == null) {
-      return '还没有今天的预算，先补完资料';
+      return '还没有资料，估算不了今天的消耗';
     }
-    final left = (target.intakeBudget - intake).round();
-    return '今天预算 ${kcalLabel(target.intakeBudget)} 千卡，'
-        '已吃 ${intake.round()}，${left >= 0 ? '还可吃 $left' : '超了 ${-left}'}';
+    if (intake <= 0) {
+      return '今天还没有饮食记录，估算消耗 ${kcalLabel(target.tdee)} 千卡';
+    }
+    final gap = (target.tdee - intake).round();
+    final diff = gap >= 0 ? '比估算消耗少 $gap' : '比估算消耗多 ${-gap}';
+    return '今天吃了 ${intake.round()} 千卡，'
+        '估算消耗 ${kcalLabel(target.tdee)} 千卡，$diff';
   }
 
   String _weightSentence() {

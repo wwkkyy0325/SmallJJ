@@ -17,7 +17,6 @@ class WeightPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final trend = model.trend;
-    final target = model.target;
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpace.md,
@@ -68,7 +67,6 @@ class WeightPage extends StatelessWidget {
                           points: trend.length > 30
                               ? trend.sublist(trend.length - 30)
                               : trend,
-                          goalKg: model.profile?.goalWeightKg,
                         ),
                         size: Size.infinite,
                       ),
@@ -93,13 +91,6 @@ class WeightPage extends StatelessWidget {
                     ? '—'
                     : signed(model.facts!.weightTrendKgPerWeek!, digits: 2),
                 unit: 'kg/周',
-              ),
-              _Summary(
-                label: '目标',
-                value: model.profile?.goalWeightKg == null
-                    ? '—'
-                    : kgLabel(model.profile!.goalWeightKg!),
-                unit: 'kg',
               ),
             ],
           ),
@@ -141,15 +132,6 @@ class WeightPage extends StatelessWidget {
                 onTap: () => showWeightSheet(context, model, entry: entry),
               ),
             ),
-        if (target != null)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpace.md),
-            child: Text(
-              '预算按 ${kcalLabel(target.tdee)} kcal 的日常消耗计算，'
-              '这个数字会用你的体重和摄入逐步校准。',
-              style: AppType.bodySmall,
-            ),
-          ),
       ],
     );
   }
@@ -209,10 +191,9 @@ class _LegendDot extends StatelessWidget {
 
 /// 折线 + 原始点。刻意不画柱状：体重不是「每天完成任务」。
 class _WeightChartPainter extends CustomPainter {
-  _WeightChartPainter({required this.points, this.goalKg});
+  _WeightChartPainter({required this.points});
 
   final List<TrendPoint> points;
-  final double? goalKg;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -225,7 +206,6 @@ class _WeightChartPainter extends CustomPainter {
 
     final values = <double>[
       for (final p in points) ...[p.trendKg, if (p.rawKg != null) p.rawKg!],
-      ?goalKg,
     ];
     var minV = values.reduce(math.min);
     var maxV = values.reduce(math.max);
@@ -257,22 +237,6 @@ class _WeightChartPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       label.paint(canvas, Offset(0, gy - label.height / 2));
-    }
-
-    if (goalKg != null) {
-      final paint = Paint()
-        ..color = AppColor.amber
-        ..strokeWidth = 1.4;
-      final gy = y(goalKg!);
-      var dx = left;
-      while (dx < size.width - 6) {
-        canvas.drawLine(
-          Offset(dx, gy),
-          Offset(math.min(dx + 6, size.width - 6), gy),
-          paint,
-        );
-        dx += 11;
-      }
     }
 
     final rawPaint = Paint()..color = AppColor.inkFaint.withValues(alpha: 0.55);
@@ -329,5 +293,5 @@ class _WeightChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _WeightChartPainter old) =>
-      old.points != points || old.goalKg != goalKg;
+      old.points != points;
 }

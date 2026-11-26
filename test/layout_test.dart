@@ -22,9 +22,6 @@ const _profile = Profile(
   birthYear: 1996,
   heightCm: 165,
   activityLevel: 'light',
-  goalMode: 'lose',
-  goalRateKgWeek: 0.5,
-  goalWeightKg: 58,
 );
 
 AppModel _buildModel() => AppModel(
@@ -238,7 +235,7 @@ void main() {
     final before = tester.getRect(card);
     final calorie = find
         .ancestor(
-          of: find.text('今天还能吃'),
+          of: find.text('今日摄入'),
           matching: find.byType(SurfaceCard),
         )
         .first;
@@ -248,13 +245,13 @@ void main() {
     expect(find.text('还没有记录'), findsOneWidget);
     expect(find.text('趋势：两条记录之后显示'), findsOneWidget);
 
-    // 不动胶囊直接保存：起点就是「我的」里的目标体重 58.00
-    expect(find.text('58.00'), findsOneWidget);
+    // 不动胶囊直接保存：没有历史记录时起点是默认的 60.00
+    expect(find.text('60.00'), findsOneWidget);
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
     // 摘要行换成真实数据，行数没变 → 卡片高度、位置都不变
-    expect(find.textContaining('最近 58.00 kg'), findsOneWidget);
+    expect(find.textContaining('最近 60.00 kg'), findsOneWidget);
     expect(tester.getRect(card), before);
     // 下面的卡长高长矮都不许把上面的热量卡推走
     expect(tester.getRect(calorie), calorieBefore);

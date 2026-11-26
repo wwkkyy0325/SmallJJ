@@ -11,7 +11,7 @@ import 'common/primary_button.dart';
 ///
 /// 没有性别：这个应用只服务女性，BMR 固定女式。
 ///
-/// 活动量、目标、目标体重都给了合理的起步值，之后在「我的」里随时改，
+/// 活动量给了合理的起步值（轻度），之后在「我的」里随时改，
 /// 不在这里拦人——第一次用的人还没有耐心回答七个问题。
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({required this.model, super.key});
@@ -66,8 +66,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
         birthYear: year,
         heightCm: height,
         activityLevel: 'light',
-        goalMode: 'lose',
-        goalRateKgWeek: 0.5,
       ),
       weightKg: weight!,
     );
@@ -126,8 +124,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
             PrimaryButton(label: '开始', onPressed: _start),
             const SizedBox(height: AppSpace.sm),
             Text(
-              '活动量按「轻度」、目标按「减脂 0.5 kg/周」起步，'
-              '之后在「我的」里改，预算跟着重算。',
+              '活动量先按「轻度」算，之后在「我的」里改，'
+              '估算消耗会跟着重算。',
               style: AppType.bodySmall,
             ),
           ],

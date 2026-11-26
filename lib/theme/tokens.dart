@@ -353,6 +353,14 @@ abstract final class AppLayout {
   static const double kgPopoverHeight = timePopoverHeight;
 }
 
+/// 进度条「整条的比例」：只有轨道高度。
+///
+/// 热量卡上的这条不是装饰：整条长度就是估算消耗，填充就是已摄入。
+abstract final class AppMeter {
+  /// 轨道高度。比装饰用的细线粗一档，一眼看得出「吃到哪了」。
+  static const double height = 10;
+}
+
 /// 图标尺寸
 abstract final class AppIcon {
   static const double sm = 16;

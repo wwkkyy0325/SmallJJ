@@ -16,15 +16,17 @@ class FoodPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final target = model.target;
     final intake = model.facts?.todayIntake ?? 0;
-    final budget = target?.intakeBudget ?? 0;
-    final ratio = budget == 0 ? 0.0 : (intake / budget).clamp(0.0, 1.0);
-    final over = intake > budget;
+    final expenditure = target?.tdee ?? 0;
+    final ratio =
+        expenditure == 0 ? 0.0 : (intake / expenditure).clamp(0.0, 1.0);
 
     final protein = model.meals.fold<double>(0, (s, m) => s + m.proteinG);
     final carb = model.meals.fold<double>(
         0, (s, m) => s + m.items.fold<double>(0, (a, i) => a + i.carbG));
     final fat = model.meals.fold<double>(
         0, (s, m) => s + m.items.fold<double>(0, (a, i) => a + i.fatG));
+    // 三条宏量只显示「今天吃了多少、占多少热量」，不设目标线。
+    final macroKcal = protein * 4 + carb * 4 + fat * 9;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -51,50 +53,38 @@ class FoodPage extends StatelessWidget {
                 children: [
                   Text(kcalLabel(intake), style: AppType.ringNumber),
                   const SizedBox(width: AppSpace.xxs),
-                  Text(
-                    '/ ${kcalLabel(budget)} kcal',
-                    style: AppType.bodySmall,
-                  ),
+                  Text('kcal', style: AppType.bodySmall),
                   const Spacer(),
                   Text(
-                    over ? '超出 ${kcalLabel(intake - budget)}' : '还剩 ${kcalLabel(budget - intake)}',
-                    style: AppType.label.copyWith(
-                      color: over ? AppColor.heart : AppColor.inkMuted,
-                    ),
+                    '估算消耗 ${kcalLabel(expenditure)}',
+                    style: AppType.bodySmall,
                   ),
                 ],
               ),
               const SizedBox(height: AppSpace.sm),
-              ClipRRect(
-                borderRadius: AppRadius.pillAll,
-                child: LinearProgressIndicator(
-                  value: ratio,
-                  minHeight: 10,
-                  backgroundColor: AppColor.surfaceMuted,
-                  valueColor: AlwaysStoppedAnimation(
-                    over ? AppColor.heart : AppColor.brand,
-                  ),
-                ),
-              ),
+              ProgressBar(value: ratio, height: AppMeter.height),
               const SizedBox(height: AppSpace.md),
               Row(
                 children: [
                   _Macro(
                     label: '蛋白',
-                    value: protein,
-                    target: target?.proteinG ?? 0,
+                    grams: protein,
+                    kcal: protein * 4,
+                    total: macroKcal,
                     color: AppColor.brand,
                   ),
                   _Macro(
                     label: '碳水',
-                    value: carb,
-                    target: target?.carbG ?? 0,
+                    grams: carb,
+                    kcal: carb * 4,
+                    total: macroKcal,
                     color: AppColor.amber,
                   ),
                   _Macro(
                     label: '脂肪',
-                    value: fat,
-                    target: target?.fatG ?? 0,
+                    grams: fat,
+                    kcal: fat * 9,
+                    total: macroKcal,
                     color: AppColor.water,
                   ),
                 ],
@@ -125,19 +115,21 @@ class FoodPage extends StatelessWidget {
 class _Macro extends StatelessWidget {
   const _Macro({
     required this.label,
-    required this.value,
-    required this.target,
+    required this.grams,
+    required this.kcal,
+    required this.total,
     required this.color,
   });
 
   final String label;
-  final double value;
-  final double target;
+  final double grams;
+  final double kcal;
+  final double total;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final ratio = target <= 0 ? 0.0 : (value / target).clamp(0.0, 1.0);
+    final share = total <= 0 ? 0.0 : (kcal / total).clamp(0.0, 1.0);
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,14 +137,14 @@ class _Macro extends StatelessWidget {
           Text(label, style: AppType.label),
           const SizedBox(height: AppSpace.xxs),
           Text(
-            '${value.round()} / ${target.round()} g',
+            '${grams.round()} g · ${(share * 100).round()}%',
             style: AppType.bodySmall.copyWith(color: AppColor.ink),
           ),
           const SizedBox(height: AppSpace.xxs),
           ClipRRect(
             borderRadius: AppRadius.pillAll,
             child: LinearProgressIndicator(
-              value: ratio,
+              value: share,
               minHeight: 4,
               backgroundColor: AppColor.surfaceMuted,
               valueColor: AlwaysStoppedAnimation(color),

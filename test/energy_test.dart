@@ -6,8 +6,6 @@ const profile = Profile(
   birthYear: 1996,
   heightCm: 165,
   activityLevel: 'light',
-  goalMode: 'lose',
-  goalRateKgWeek: 0.5,
 );
 
 void main() {
@@ -32,27 +30,27 @@ void main() {
     });
   });
 
-  group('每日预算', () {
-    test('缺口按 25% TDEE 封顶，且不低于摄入下限', () {
+  group('估算消耗', () {
+    test('公式值 = BMR × 活动系数，没有预算和缺口', () {
+      final plan = planEnergy(profile: profile, weightKg: 60, year: 2026);
+      final bmr = bmrFemale(weightKg: 60, heightCm: 165, ageYears: 30);
+      expect(plan.bmr, closeTo(bmr, 0.001));
+      expect(plan.tdee, closeTo(bmr * palFor('light'), 0.001));
+      expect(plan.adaptiveWeight, 0);
+    });
+
+    test('自适应值优先，公式只做锚点', () {
       final plan = planEnergy(
         profile: profile,
         weightKg: 60,
         year: 2026,
+        adaptiveTdee: 2200,
       );
-      final tdee = plan.tdee;
-      expect(plan.deficitKcal, lessThanOrEqualTo(tdee * 0.25 + 0.001));
-      expect(plan.intakeBudget, greaterThanOrEqualTo(1200));
-      expect(plan.intakeBudget + plan.deficitKcal, closeTo(tdee, 0.001));
-      expect(plan.note, contains('25%'));
+      expect(plan.tdee, 2200);
+      expect(plan.adaptiveWeight, 1);
     });
 
-    test('BMI < 18.5 强制关闭减脂缺口', () {
-      final plan = planEnergy(profile: profile, weightKg: 48, year: 2026);
-      expect(plan.deficitKcal, 0);
-      expect(plan.note, contains('BMI'));
-    });
-
-    test('宏量热量之和不超过预算', () {
+    test('宏量热量之和不超过估算消耗', () {
       final plan = planEnergy(
         profile: profile,
         weightKg: 70,
@@ -60,18 +58,15 @@ void main() {
         adaptiveTdee: 2200,
       );
       final kcal = plan.proteinG * 4 + plan.carbG * 4 + plan.fatG * 9;
-      expect(kcal, lessThanOrEqualTo(plan.intakeBudget + 0.5));
+      expect(kcal, lessThanOrEqualTo(plan.tdee + 0.5));
       expect(plan.proteinG, greaterThan(0));
       expect(plan.fatG, greaterThan(0));
     });
 
-    test('维持模式缺口为 0', () {
-      final plan = planEnergy(
-        profile: profile.copyWith(goalMode: 'maintain'),
-        weightKg: 60,
-        year: 2026,
-      );
-      expect(plan.deficitKcal, 0);
+    test('BMI 偏低也不改估算值：没有计划，就没有要关掉的东西', () {
+      final plan = planEnergy(profile: profile, weightKg: 48, year: 2026);
+      final bmr = bmrFemale(weightKg: 48, heightCm: 165, ageYears: 30);
+      expect(plan.tdee, closeTo(bmr * palFor('light'), 0.001));
     });
   });
 
@@ -127,6 +122,69 @@ void main() {
         previousAdaptive: 1900,
       )!;
       expect(result, closeTo(2050, 0.001));
+    });
+
+    test('完美线性的斜率就是端点差：-1/14 kg/天', () {
+      final slope = weightSlopeKgPerDay(series(days: 14, lossPerDay: 1 / 14));
+      expect(slope!, closeTo(-1 / 14, 1e-9));
+    });
+
+    test('最后一天多喝 1 kg 水，斜率几乎不动', () {
+      final weights = series(days: 14, lossPerDay: 1 / 14);
+      final spiked = [
+        ...weights.take(13),
+        DailyWeight(
+          localDate: weights.last.localDate,
+          kg: weights.last.kg + 1,
+          entries: const [],
+        ),
+      ];
+      expect(weightSlopeKgPerDay(spiked)!, closeTo(-1 / 14, 0.035));
+    });
+
+    test('端点那天水的重量不会把反解的 TDEE 带跑', () {
+      // 旧算法用「最后一条 − 第一条」：最后一天重 1 kg 就等于这两周没掉秤，
+      // 反解只有 1600（混合后 1664）。最小二乘只让一个点说话。
+      final weights = series(days: 14, lossPerDay: 1 / 14);
+      final spiked = [
+        ...weights.take(13),
+        DailyWeight(
+          localDate: weights.last.localDate,
+          kg: weights.last.kg + 1,
+          entries: const [],
+        ),
+      ];
+      final result = adaptiveTdeeFromBalance(
+        weights: spiked,
+        intakeForDate: (_) => 1600,
+        formulaTdee: 1815.34,
+      )!;
+      expect(result, greaterThan(1850));
+      expect(result, closeTo(1896, 25));
+    });
+  });
+
+  group('今日收支（消耗 − 摄入）', () {
+    test('没吃超：差值为正，条子按消耗算比例', () {
+      const b = DayBalance(intakeKcal: 1410, expenditureKcal: 2050);
+      expect(b.gapKcal, 640);
+      expect(b.isSurplus, isFalse);
+      expect(b.magnitudeKcal, 640);
+      expect(b.ratio, closeTo(1410 / 2050, 1e-9));
+    });
+
+    test('吃超了：差值为负，条子满格，取值用绝对值', () {
+      const b = DayBalance(intakeKcal: 2280, expenditureKcal: 2050);
+      expect(b.gapKcal, -230);
+      expect(b.isSurplus, isTrue);
+      expect(b.magnitudeKcal, 230);
+      expect(b.ratio, 1);
+    });
+
+    test('差值随当天摄入变，不是一个设置里的常数', () {
+      const b = DayBalance(intakeKcal: 1410, expenditureKcal: 2050);
+      expect(b.gapKcal, 2050 - 1410);
+      expect(b.gapKcal, isNot(450));
     });
   });
 

@@ -26,10 +26,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late final TextEditingController _year;
   late final TextEditingController _height;
-  late final TextEditingController _goalWeight;
   late String _activity;
-  late String _goal;
-  late double _rate;
   late bool _period;
   late bool _aiNarration;
 
@@ -39,12 +36,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final p = widget.model.profile!;
     _year = TextEditingController(text: '${p.birthYear}');
     _height = TextEditingController(text: heightLabel(p.heightCm));
-    _goalWeight = TextEditingController(
-      text: p.goalWeightKg == null ? '' : kgLabel(p.goalWeightKg!),
-    );
     _activity = p.activityLevel;
-    _goal = p.goalMode;
-    _rate = p.goalRateKgWeek;
     _period = p.periodTracking;
     _aiNarration = p.aiNarration;
   }
@@ -53,7 +45,6 @@ class _ProfilePageState extends State<ProfilePage> {
   void dispose() {
     _year.dispose();
     _height.dispose();
-    _goalWeight.dispose();
     super.dispose();
   }
 
@@ -61,20 +52,16 @@ class _ProfilePageState extends State<ProfilePage> {
     final base = widget.model.profile!;
     final year = int.tryParse(_year.text.trim()) ?? base.birthYear;
     final height = double.tryParse(_height.text.trim()) ?? base.heightCm;
-    final goalWeight = double.tryParse(_goalWeight.text.trim());
     widget.model.saveProfile(base.copyWith(
       birthYear: year.clamp(1900, 2100),
       heightCm: height.clamp(100, 250),
       activityLevel: _activity,
-      goalMode: _goal,
-      goalRateKgWeek: _rate,
-      goalWeightKg: (goalWeight ?? 0) >= 30 ? goalWeight : null,
       periodTracking: _period,
       aiNarration: _aiNarration,
     ));
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('已保存，今天的预算按新资料重算')));
+      ..showSnackBar(const SnackBar(content: Text('已保存')));
   }
 
   @override
@@ -136,44 +123,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   DropdownMenuItem(value: 'active', child: Text('活跃（每周 6–7 次）')),
                 ],
                 onChanged: (v) => setState(() => _activity = v ?? _activity),
-              ),
-              const SizedBox(height: AppSpace.md),
-              DropdownButtonFormField<String>(
-                initialValue: _goal,
-                decoration: const InputDecoration(labelText: '目标'),
-                items: const [
-                  DropdownMenuItem(value: 'lose', child: Text('减脂')),
-                  DropdownMenuItem(value: 'maintain', child: Text('维持')),
-                  DropdownMenuItem(value: 'gain', child: Text('增重')),
-                ],
-                onChanged: (v) => setState(() => _goal = v ?? _goal),
-              ),
-              const SizedBox(height: AppSpace.md),
-              Row(
-                children: [
-                  Expanded(
-                    child: MeasureField(
-                      controller: _goalWeight,
-                      label: '目标体重',
-                    ),
-                  ),
-                  const SizedBox(width: AppSpace.sm),
-                  Expanded(
-                    child: SizedBox(
-                      height: AppLayout.fieldHeight,
-                      child: DropdownButtonFormField<double>(
-                        initialValue: _rate,
-                        decoration: const InputDecoration(labelText: '每周变化'),
-                        items: const [
-                          DropdownMenuItem(value: 0.25, child: Text('0.25 kg')),
-                          DropdownMenuItem(value: 0.5, child: Text('0.5 kg')),
-                          DropdownMenuItem(value: 0.75, child: Text('0.75 kg')),
-                        ],
-                        onChanged: (v) => setState(() => _rate = v ?? _rate),
-                      ),
-                    ),
-                  ),
-                ],
               ),
               const SizedBox(height: AppSpace.md),
               SwitchListTile(

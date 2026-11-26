@@ -6,17 +6,16 @@ import 'package:health_app/data/models.dart';
 import 'package:health_app/data/repository.dart';
 import 'package:health_app/main.dart';
 import 'package:health_app/ui/app_model.dart';
+import 'package:health_app/ui/format.dart';
 import 'package:health_app/theme/tokens.dart';
 import 'package:health_app/ui/common/anchor_popover.dart';
+import 'package:health_app/ui/common/surface_card.dart';
 import 'package:health_app/ui/common/weight_entry.dart';
 
 const testProfile = Profile(
   birthYear: 1996,
   heightCm: 165,
   activityLevel: 'light',
-  goalMode: 'lose',
-  goalRateKgWeek: 0.5,
-  goalWeightKg: 58,
 );
 
 AppModel buildModel() => AppModel(
@@ -72,6 +71,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('开始'), findsOneWidget);
 
+    // 页脚只承诺「活动量按轻度」：功能里没有目标，文案也不许提
+    expect(find.textContaining('活动量先按「轻度」算'), findsOneWidget);
+    expect(find.textContaining('目标'), findsNothing);
+
     // 引导只问四项，体重不预填，用户自己敲
     await tester.enterText(find.byType(TextField).last, '60');
     await tester.tap(find.text('开始'));
@@ -79,7 +82,7 @@ void main() {
 
     // 引导完成后进主页：首屏是「今天」，体重卡直接能填
     expect(find.text('今天'), findsWidgets);
-    expect(find.text('今天还能吃'), findsOneWidget);
+    expect(find.text('今日摄入'), findsOneWidget);
     expect(find.textContaining('现在'), findsOneWidget);
     expect(model.onboarded, isTrue);
     expect(model.entries.first.weightKg, 60);
@@ -105,9 +108,11 @@ void main() {
     await tester.tap(find.text('我的').last);
     await tester.pumpAndSettle();
     expect(find.text('日常活动量'), findsOneWidget);
-    expect(find.text('目标'), findsOneWidget);
+    // 没有目标：不问减脂/增重，也不问目标体重和每周速率
+    expect(find.text('目标'), findsNothing);
+    expect(find.text('目标体重'), findsNothing);
 
-    // 出生年、身高、目标体重是「我的」里的前三个输入框
+    // 身体资料只有出生年和身高，改身高不动已经记下的体重
     await tester.enterText(find.byType(TextField).at(1), '170');
     await tester.ensureVisible(find.text('保存'));
     await tester.pumpAndSettle();
@@ -134,6 +139,81 @@ void main() {
     expect(model.entries.first.weightKg, 60.83);
     expect(model.entries.first.date.hour, 15);
     expect(find.textContaining('60.83'), findsWidgets);
+  });
+
+  testWidgets('一条饮食都没记时只写「今天还没记饮食」，不报差值', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    expect(find.text('今日摄入'), findsOneWidget);
+    expect(find.text('今天还没记饮食'), findsOneWidget);
+    // 早上八点「比估算消耗少 1953」只是噪音，不许出现
+    expect(find.textContaining('比估算消耗'), findsNothing);
+  });
+
+  testWidgets('热量卡：大数字是今日摄入，条子按估算消耗算，不给红绿评价', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    // 一碗米饭 150 g ≈ 174 kcal
+    model.repo.addMealItem(
+      localDate: model.todayKey,
+      slot: MealSlot.lunch,
+      food: model.repo.searchFoods('米饭').first,
+      grams: 150,
+    );
+    model.reload();
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    final intake = model.facts!.todayIntake;
+    final tdee = model.target!.tdee;
+    expect(intake, greaterThan(0));
+
+    expect(find.text('今日摄入'), findsOneWidget);
+    expect(find.text('估算消耗 ${kcalLabel(tdee)}'), findsOneWidget);
+    expect(find.text(kcalLabel(intake)), findsOneWidget);
+
+    // 进度条：整条是估算消耗，填充是已摄入；没有红绿，也没有预算刻度
+    final bar = tester.widget<ProgressBar>(find.byType(ProgressBar));
+    expect(bar.value, closeTo(intake / tdee, 1e-9));
+
+    // 差值只用一句话说方向，不写成「缺口」
+    final gap = (tdee - intake).round();
+    expect(find.text('比估算消耗少 $gap kcal'), findsOneWidget);
+    final big = tester.widget<Text>(find.text(kcalLabel(intake)));
+    expect(big.style!.color, isNot(AppColor.heart));
+  });
+
+  testWidgets('吃超估算消耗也不翻红，只说「比估算消耗多」', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    // 1600 g 米饭 ≈ 1856 kcal，超过公式 TDEE 1815 kcal
+    model.repo.addMealItem(
+      localDate: model.todayKey,
+      slot: MealSlot.lunch,
+      food: model.repo.searchFoods('米饭').first,
+      grams: 1600,
+    );
+    model.reload();
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    final intake = model.facts!.todayIntake;
+    final over = (intake - model.target!.tdee).round();
+    expect(find.text('比估算消耗多 $over kcal'), findsOneWidget);
+    expect(find.text('今日摄入'), findsOneWidget);
+
+    // 条子满格，但不换颜色：多吃了不是错误
+    final bar = tester.widget<ProgressBar>(find.byType(ProgressBar));
+    expect(bar.value, 1.0);
+
+    final big = tester.widget<Text>(find.text(kcalLabel(intake)));
+    expect(big.style!.color, isNot(AppColor.heart));
   });
 
   testWidgets('体重是滚轮选出来的两位小数，第三位根本不存在', (tester) async {
@@ -230,6 +310,39 @@ void main() {
 
     expect(model.meals.first.items, isNotEmpty);
     expect(model.facts!.todayIntake, greaterThan(0));
+  });
+
+  testWidgets('克数填错时不显示 0 kcal，「添加」点不动', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('饮食').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add_circle_outline_rounded).first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '两个鸡蛋');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('鸡蛋').last);
+    await tester.pumpAndSettle();
+
+    // 克数清空：标签说清楚，而不是算出一个 0 kcal 的食物
+    await tester.enterText(find.byType(TextField).last, '');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('克数没填对'), findsOneWidget);
+    final disabled = tester.widget<FilledButton>(
+      find.ancestor(of: find.text('添加'), matching: find.byType(FilledButton)),
+    );
+    expect(disabled.onPressed, isNull);
+
+    // 填回去就能加
+    await tester.enterText(find.byType(TextField).last, '50');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+    expect(model.meals.first.items, isNotEmpty);
   });
 
   testWidgets('体重页「记一笔」和首屏是同一个表单：空框、同样式、能撤销', (tester) async {

@@ -60,9 +60,9 @@ final List<VoiceLink> voiceCatalog = [
     writes: true,
   ),
   VoiceLink(
-    title: '问今天还能吃多少',
-    uri: _link('query', {'what': 'budget'}),
-    hint: '不写数据，只播报 + 顶部提示剩余热量',
+    title: '问今天吃了多少',
+    uri: _link('query', {'what': 'intake'}),
+    hint: '不写数据，只播报今天的摄入和估算消耗',
     writes: false,
   ),
   VoiceLink(

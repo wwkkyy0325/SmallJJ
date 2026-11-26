@@ -201,9 +201,12 @@ class _FoodSheetState extends State<_FoodSheet> {
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
-    final kcal = selected == null
-        ? 0.0
-        : selected.kcalPer100g * (double.tryParse(_grams.text) ?? 0) / 100;
+    // 克数没填对（空、或者混进了非数字）时不给 0 kcal：那会让人以为食物没热量。
+    // 这里算成 null，标签说「克数没填对」，「添加」也不亮——点不动比默默无反应清楚。
+    final grams = double.tryParse(_grams.text.trim());
+    final kcal = selected == null || grams == null || grams <= 0
+        ? null
+        : selected.kcalPer100g * grams / 100;
     // 列表吃掉固定行之外的全部高度：解析结果多一行、少一行都不影响弹层高度。
     final listHeight = (widget.height - _FoodSheet._fixed).clamp(88.0, 260.0);
 
@@ -284,6 +287,8 @@ class _FoodSheetState extends State<_FoodSheet> {
                   child: Text(
                     selected == null
                         ? '选择一种食物，或直接搜索'
+                        : kcal == null
+                        ? '${selected.name} · 克数没填对'
                         : '${selected.name} · ${kcal.round()} kcal',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -312,7 +317,7 @@ class _FoodSheetState extends State<_FoodSheet> {
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(0, AppLayout.fieldHeight),
                     ),
-                    onPressed: selected == null ? null : _add,
+                    onPressed: kcal == null ? null : _add,
                     child: const Text('添加', maxLines: 1, softWrap: false),
                   ),
                 ),

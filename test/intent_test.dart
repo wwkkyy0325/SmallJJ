@@ -12,9 +12,6 @@ const testProfile = Profile(
   birthYear: 1996,
   heightCm: 165,
   activityLevel: 'light',
-  goalMode: 'lose',
-  goalRateKgWeek: 0.5,
-  goalWeightKg: 58,
 );
 
 AppModel buildModel() => AppModel(
@@ -138,9 +135,9 @@ void main() {
       await tester.pumpWidget(HealthApp(model: model));
       await tester.pumpAndSettle();
 
-      await sendLink(tester, 'smalljj://query?what=budget');
+      await sendLink(tester, 'smalljj://query?what=intake');
 
-      expect(find.textContaining('今天预算'), findsOneWidget);
+      expect(find.textContaining('今天还没有饮食记录'), findsOneWidget);
       expect(model.repo.tableCounts(), before);
     });
 

@@ -100,9 +100,17 @@ class MetricBadge extends StatelessWidget {
   }
 }
 
-/// 进度条：轨道 + 品牌色填充，带 240ms 入场。
+/// 进度条：轨道 + 填充。整站的「一条比例」都走这里。
+///
+/// 只有一种颜色（品牌渐变），没有「超支翻红」，也没有预算刻度：这条不是
+/// 评价，是比例。应用不做计划，见 `docs/本轮实现与取舍.md`「不再有目标、
+/// 预算、缺口」。
 class ProgressBar extends StatelessWidget {
-  const ProgressBar({required this.value, this.height = 6, super.key});
+  const ProgressBar({
+    required this.value,
+    this.height = 6,
+    super.key,
+  });
 
   final double value;
   final double height;
@@ -112,28 +120,31 @@ class ProgressBar extends StatelessWidget {
     return ClipRRect(
       borderRadius: AppRadius.pillAll,
       child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0, end: value.clamp(0, 1)),
+        tween: Tween<double>(begin: 0, end: value.clamp(0.0, 1.0)),
         duration: AppMotion.respect(context, AppMotion.slow),
         curve: AppMotion.enter,
         builder: (context, v, _) => LayoutBuilder(
-          builder: (context, constraints) => Stack(
-            children: [
-              Container(
-                height: height,
-                width: constraints.maxWidth,
-                color: AppColor.surfaceMuted,
-              ),
-              Container(
-                height: height,
-                width: constraints.maxWidth * v,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColor.brand, AppColor.brandStrong],
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            return Stack(
+              children: [
+                Container(
+                  height: height,
+                  width: width,
+                  color: AppColor.surfaceMuted,
+                ),
+                Container(
+                  height: height,
+                  width: width * v,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColor.brand, AppColor.brandStrong],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       ),
     );

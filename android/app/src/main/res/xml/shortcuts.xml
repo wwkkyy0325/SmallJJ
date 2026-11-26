@@ -41,16 +41,16 @@
             android:data="smalljj://food" />
     </shortcut>
     <shortcut
-        android:shortcutId="ask_budget"
+        android:shortcutId="ask_intake"
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="@string/shortcut_budget"
-        android:shortcutLongLabel="@string/shortcut_budget">
+        android:shortcutShortLabel="@string/shortcut_intake"
+        android:shortcutLongLabel="@string/shortcut_intake">
         <intent
             android:action="android.intent.action.VIEW"
             android:targetPackage="com.smalljj.health_app"
             android:targetClass="com.smalljj.health_app.MainActivity"
-            android:data="smalljj://query?what=budget" />
+            android:data="smalljj://query?what=intake" />
     </shortcut>
     <shortcut
         android:shortcutId="period_start"

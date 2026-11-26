@@ -21,7 +21,7 @@ import 'package:flutter/services.dart';
 ///     smalljj://period?action=status           只播报，不写数据
 ///
 ///   查询（只播报 + 顶部提示，不写数据）
-///     smalljj://query?what=budget|weight|cycle|all
+///     smalljj://query?what=intake|weight|cycle|all
 ///
 ///   其它
 ///     smalljj://today                          回到今天

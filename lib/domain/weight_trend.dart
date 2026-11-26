@@ -51,7 +51,7 @@ double? trendDeltaKg(List<TrendPoint> trend, {int days = 7}) {
   return last.trendKg - baseline.trendKg;
 }
 
-/// 换算成 kg/周，给「目标速率 vs 实际速率」比较用。
+/// 换算成 kg/周，看「一周大概变了多少」。
 double? trendRateKgPerWeek(List<TrendPoint> trend, {int days = 7}) {
   if (trend.length < 2) return null;
   final last = trend.last;

@@ -17,9 +17,6 @@ const _profile = Profile(
   birthYear: 1996,
   heightCm: 165,
   activityLevel: 'light',
-  goalMode: 'lose',
-  goalRateKgWeek: 0.5,
-  goalWeightKg: 58,
 );
 
 AppModel _buildModel() => AppModel(
@@ -64,6 +61,20 @@ void main() {
     model.deleteWeight(id);
     await tester.pumpAndSettle();
     expect(find.text('60.40'), findsOneWidget);
+  });
+
+  test('删掉今天那条体重，今天的估算跟着回算', () {
+    final model = _buildModel();
+    model.completeOnboarding(draft: _profile, weightKg: 62);
+    final before = model.target!.tdee;
+
+    // 同一天补一条更重的：体重是 BMR 的输入，估算该跟着变大
+    final id = model.saveWeight(at: DateTime(2026, 1, 15, 18), kg: 70);
+    expect(model.target!.tdee, greaterThan(before));
+
+    // 删掉它：不能留着按 70 kg 算出来的估算
+    model.deleteWeight(id);
+    expect(model.target!.tdee, closeTo(before, 0.5));
   });
 
   testWidgets('用户滚过之后，别处的记录不冲掉这次的选择', (tester) async {
