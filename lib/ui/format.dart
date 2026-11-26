@@ -7,9 +7,23 @@ String monthDayLabel(DateTime date) => '${date.month}月${date.day}日';
 String fullDateLabel(DateTime date) =>
     '${date.year}年${date.month}月${date.day}日 ${weekdayLabel(date)}';
 
+/// 胶囊里的日期：比 [relativeDay] 更短。
+///
+/// 日期和时间挤在同一颗胶囊里，宽度是写死的（156），
+/// 所以「9月28日」在这里写成「9/28」；今天 / 昨天 / 前天照旧。
+String compactDay(DateTime date, DateTime today) {
+  final label = relativeDay(date, today);
+  return label.endsWith('日') ? '${date.month}/${date.day}' : label;
+}
+
 String kcalLabel(double kcal) => '${kcal.round()}';
 
-String kgLabel(double kg) => kg.toStringAsFixed(1);
+/// 体重：固定两位小数（0.01 kg），和录入精度一致。
+String kgLabel(double kg) => kg.toStringAsFixed(2);
+
+/// 身高：整数就不带小数，避免「165.00 cm」这种读起来别扭的写法。
+String heightLabel(double cm) =>
+    cm == cm.roundToDouble() ? cm.toStringAsFixed(0) : cm.toStringAsFixed(1);
 
 String clockLabel(DateTime time) =>
     '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';

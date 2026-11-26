@@ -7,7 +7,10 @@ import 'food_seed.dart';
 
 /// 建库与迁移。表只有 8 张，全部围绕「体重 / 饮食 / 预算 / 周期」，
 /// 没有预留表：用不上的东西不建。
-const int kSchemaVersion = 1;
+///
+/// v2：体重表去掉「早/晚/任意」时段，一条记录就是「一个时间点的体重」。
+/// v3：资料表去掉性别——应用只面向女性，BMR 固定女式。
+const int kSchemaVersion = 3;
 
 const String _schemaV1 = '''
 PRAGMA foreign_keys = ON;
@@ -143,12 +146,111 @@ Database openTestDatabase() {
 }
 
 void migrate(Database db) {
-  final version =
+  var version =
       (db.select('PRAGMA user_version').first.values.first as int?) ?? 0;
   if (version >= kSchemaVersion) return;
-  db.execute(_schemaV1);
-  _seedFoods(db);
-  db.execute('PRAGMA user_version = $kSchemaVersion');
+  if (version < 1) {
+    db.execute(_schemaV1);
+    _seedFoods(db);
+    version = 1;
+  }
+  if (version < 2) {
+    _upgradeWeightV2(db);
+    version = 2;
+  }
+  if (version < 3) {
+    _upgradeProfileV3(db);
+    version = 3;
+  }
+  db.execute('PRAGMA user_version = $version');
+}
+
+/// v1 → v2：体重表去掉「时段」，一条记录就是一个时间点上的体重。
+///
+/// 时段是上一版为了「早上晚上各记一次」造的键，现在时间本身就是键，
+/// 所以把行原样搬进新表、把 slot 丢掉。新建的库跑完 v1 立刻走到这里，
+/// 只是没有可搬的行。
+void _upgradeWeightV2(Database db) {
+  final hasSlot = db
+      .select('PRAGMA table_info(weight_entry)')
+      .any((row) => row['name'] == 'slot');
+  if (!hasSlot) return;
+  db.execute('BEGIN');
+  try {
+    db.execute('''
+CREATE TABLE weight_entry_v2 (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  local_date    TEXT NOT NULL,
+  measured_at   INTEGER NOT NULL,
+  weight_kg     REAL NOT NULL CHECK (weight_kg BETWEEN 25 AND 300),
+  body_fat_pct  REAL CHECK (body_fat_pct BETWEEN 1 AND 70),
+  note          TEXT,
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+)''');
+    db.execute(
+      'INSERT INTO weight_entry_v2 '
+      '(id, local_date, measured_at, weight_kg, body_fat_pct, note, '
+      ' created_at, updated_at) '
+      'SELECT id, local_date, measured_at, weight_kg, body_fat_pct, note, '
+      ' created_at, updated_at FROM weight_entry',
+    );
+    db.execute('DROP TABLE weight_entry');
+    db.execute('ALTER TABLE weight_entry_v2 RENAME TO weight_entry');
+    db.execute('COMMIT');
+  } catch (_) {
+    db.execute('ROLLBACK');
+    rethrow;
+  }
+  db.execute(
+    'CREATE INDEX IF NOT EXISTS idx_weight_measured '
+    'ON weight_entry(measured_at)',
+  );
+}
+
+/// v2 → v3：资料表去掉「性别」。
+///
+/// 这个应用只面向女性，BMR 固定用女式公式，`sex` 这一列再没有任何读者，
+/// 也就不用再问用户。资料表恒定一行，直接重建比 `ALTER TABLE DROP COLUMN`
+/// 稳（那要 SQLite 3.35+，旧机器不一定有）。新建的库跑完 v1 自带这一列，
+/// 一样走到这里，所以「新装」和「升级」之后表结构是同一个。
+void _upgradeProfileV3(Database db) {
+  final hasSex =
+      db.select('PRAGMA table_info(profile)').any((row) => row['name'] == 'sex');
+  if (!hasSex) return;
+  db.execute('BEGIN');
+  try {
+    db.execute('''
+CREATE TABLE profile_v3 (
+  id                INTEGER PRIMARY KEY CHECK (id = 1),
+  birth_year        INTEGER NOT NULL CHECK (birth_year BETWEEN 1900 AND 2100),
+  height_cm         REAL NOT NULL CHECK (height_cm BETWEEN 100 AND 250),
+  activity_level    TEXT NOT NULL DEFAULT 'light'
+                    CHECK (activity_level IN ('sedentary','light','moderate','active')),
+  goal_mode         TEXT NOT NULL DEFAULT 'lose'
+                    CHECK (goal_mode IN ('lose','maintain','gain')),
+  goal_weight_kg    REAL CHECK (goal_weight_kg BETWEEN 30 AND 200),
+  goal_rate_kg_week REAL NOT NULL DEFAULT 0.5
+                    CHECK (goal_rate_kg_week BETWEEN 0 AND 1),
+  period_tracking   INTEGER NOT NULL DEFAULT 1,
+  ai_narration      INTEGER NOT NULL DEFAULT 1,
+  updated_at        INTEGER NOT NULL
+)''');
+    db.execute(
+      'INSERT INTO profile_v3 '
+      '(id, birth_year, height_cm, activity_level, goal_mode, goal_weight_kg, '
+      ' goal_rate_kg_week, period_tracking, ai_narration, updated_at) '
+      'SELECT id, birth_year, height_cm, activity_level, goal_mode, '
+      ' goal_weight_kg, goal_rate_kg_week, period_tracking, ai_narration, '
+      ' updated_at FROM profile',
+    );
+    db.execute('DROP TABLE profile');
+    db.execute('ALTER TABLE profile_v3 RENAME TO profile');
+    db.execute('COMMIT');
+  } catch (_) {
+    db.execute('ROLLBACK');
+    rethrow;
+  }
 }
 
 void _seedFoods(Database db) {

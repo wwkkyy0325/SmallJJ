@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/tokens.dart';
+import 'common/measure_field.dart';
+import 'common/primary_button.dart';
 import 'common/surface_card.dart';
 import 'app_model.dart';
 import 'format.dart';
@@ -13,7 +15,7 @@ class ProfilePage extends StatefulWidget {
 
   final AppModel model;
 
-  /// 「小布 / 快捷指令」页里的自测按钮，回到 Shell 走同一条路由
+  /// 「快捷入口」页里的自测按钮，回到 Shell 走同一条路由
   final void Function(String uri)? onRunLink;
 
   @override
@@ -24,7 +26,6 @@ class _ProfilePageState extends State<ProfilePage> {
   late final TextEditingController _year;
   late final TextEditingController _height;
   late final TextEditingController _goalWeight;
-  late String _sex;
   late String _activity;
   late String _goal;
   late double _rate;
@@ -36,11 +37,10 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     final p = widget.model.profile!;
     _year = TextEditingController(text: '${p.birthYear}');
-    _height = TextEditingController(text: kgLabel(p.heightCm));
+    _height = TextEditingController(text: heightLabel(p.heightCm));
     _goalWeight = TextEditingController(
       text: p.goalWeightKg == null ? '' : kgLabel(p.goalWeightKg!),
     );
-    _sex = p.sex;
     _activity = p.activityLevel;
     _goal = p.goalMode;
     _rate = p.goalRateKgWeek;
@@ -62,7 +62,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final height = double.tryParse(_height.text.trim()) ?? base.heightCm;
     final goalWeight = double.tryParse(_goalWeight.text.trim());
     widget.model.saveProfile(base.copyWith(
-      sex: _sex,
       birthYear: year.clamp(1900, 2100),
       heightCm: height.clamp(100, 250),
       activityLevel: _activity,
@@ -102,33 +101,25 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               const SectionHeader(title: '身体资料', caption: '只用来算 BMR，不上传'),
               const SizedBox(height: AppSpace.md),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'female', label: Text('女')),
-                  ButtonSegment(value: 'male', label: Text('男')),
-                ],
-                selected: {_sex},
-                onSelectionChanged: (v) => setState(() => _sex = v.first),
-              ),
-              const SizedBox(height: AppSpace.md),
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _year,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '出生年'),
+                    child: SizedBox(
+                      height: AppLayout.fieldHeight,
+                      child: TextField(
+                        controller: _year,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: '出生年'),
+                      ),
                     ),
                   ),
                   const SizedBox(width: AppSpace.sm),
                   Expanded(
-                    child: TextField(
+                    child: MeasureField(
                       controller: _height,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: '身高',
-                        suffixText: 'cm',
-                      ),
+                      label: '身高',
+                      unit: 'cm',
+                      hint: '165',
                     ),
                   ),
                 ],
@@ -160,26 +151,25 @@ class _ProfilePageState extends State<ProfilePage> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
+                    child: MeasureField(
                       controller: _goalWeight,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: '目标体重',
-                        suffixText: 'kg',
-                      ),
+                      label: '目标体重',
                     ),
                   ),
                   const SizedBox(width: AppSpace.sm),
                   Expanded(
-                    child: DropdownButtonFormField<double>(
-                      initialValue: _rate,
-                      decoration: const InputDecoration(labelText: '每周变化'),
-                      items: const [
-                        DropdownMenuItem(value: 0.25, child: Text('0.25 kg')),
-                        DropdownMenuItem(value: 0.5, child: Text('0.5 kg')),
-                        DropdownMenuItem(value: 0.75, child: Text('0.75 kg')),
-                      ],
-                      onChanged: (v) => setState(() => _rate = v ?? _rate),
+                    child: SizedBox(
+                      height: AppLayout.fieldHeight,
+                      child: DropdownButtonFormField<double>(
+                        initialValue: _rate,
+                        decoration: const InputDecoration(labelText: '每周变化'),
+                        items: const [
+                          DropdownMenuItem(value: 0.25, child: Text('0.25 kg')),
+                          DropdownMenuItem(value: 0.5, child: Text('0.5 kg')),
+                          DropdownMenuItem(value: 0.75, child: Text('0.75 kg')),
+                        ],
+                        onChanged: (v) => setState(() => _rate = v ?? _rate),
+                      ),
                     ),
                   ),
                 ],
@@ -201,17 +191,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 subtitle: const Text('规则引擎生成的提示，关掉只留数字'),
               ),
               const SizedBox(height: AppSpace.sm),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _save,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColor.brandStrong,
-                    minimumSize: const Size(0, 48),
-                  ),
-                  child: const Text('保存'),
-                ),
-              ),
+              PrimaryButton(label: '保存', onPressed: _save),
             ],
           ),
         ),
@@ -281,8 +261,8 @@ class _ProfilePageState extends State<ProfilePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SectionHeader(
-                title: '小布 / 快捷指令',
-                caption: '语音代劳，不用手填',
+                title: '快捷入口',
+                caption: '磁贴 / 长按图标 / 链接，小布只能打开应用',
               ),
               const SizedBox(height: AppSpace.xxs),
               Text(voiceSummary(model), style: AppType.bodySmall),
@@ -346,7 +326,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               const SizedBox(height: AppSpace.sm),
               Text(
-                '算法版本 v1 · 数据库 schema 1 · 身高 ${kgLabel(profile.heightCm)} cm',
+                '算法版本 v1 · 数据库 schema 1 · 身高 ${heightLabel(profile.heightCm)} cm',
                 style: AppType.micro,
               ),
             ],

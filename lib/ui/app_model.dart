@@ -20,8 +20,6 @@ class AppModel extends ChangeNotifier {
   DayTarget? target;
   List<Insight> insights = const [];
   List<MealSection> meals = const [];
-  WeightEntry? morningEntry;
-  WeightEntry? eveningEntry;
   List<TrendPoint> trend = const [];
   List<WeightEntry> entries = const [];
   CycleStats cycle = const CycleStats(cycleLengths: []);
@@ -42,8 +40,6 @@ class AppModel extends ChangeNotifier {
     facts = repo.factsFor();
     insights = repo.insights();
     meals = repo.mealsFor(key);
-    morningEntry = repo.weightOn(key, WeightSlot.morning);
-    eveningEntry = repo.weightOn(key, WeightSlot.evening);
     trend = repo.trendPoints();
     entries = repo.weightEntries(limit: 60);
     cycle = repo.cycleStats();
@@ -56,11 +52,7 @@ class AppModel extends ChangeNotifier {
     required double weightKg,
   }) {
     repo.saveProfile(draft);
-    repo.saveWeight(
-      localDate: todayKey,
-      slot: WeightSlot.morning,
-      weightKg: weightKg,
-    );
+    repo.saveWeight(at: now, weightKg: weightKg);
     reload();
   }
 
@@ -71,35 +63,27 @@ class AppModel extends ChangeNotifier {
     reload();
   }
 
-  void saveWeight({
-    required WeightSlot slot,
+  int saveWeight({
+    required DateTime at,
     required double kg,
-    required String localDate,
+    int? id,
     double? bodyFat,
   }) {
-    repo.saveWeight(
-      localDate: localDate,
-      slot: slot,
+    final saved = repo.saveWeight(
+      at: at,
       weightKg: kg,
       bodyFatPct: bodyFat,
+      id: id,
     );
-    repo.targetFor(localDate, recompute: true);
+    // 体重变了，当天的预算要跟着重算（历史快照不动）。
+    repo.targetFor(repoDateKey(at), recompute: true);
     reload();
+    return saved;
   }
 
-  void deleteWeight(String localDate, WeightSlot slot) {
-    final entry = repo.weightOn(localDate, slot);
-    if (entry == null) return;
-    repo.deleteWeight(_weightIdFor(entry));
+  void deleteWeight(int id) {
+    repo.deleteWeight(id);
     reload();
-  }
-
-  int _weightIdFor(WeightEntry entry) {
-    final rows = repo.db.select(
-      'SELECT id FROM weight_entry WHERE local_date = ? AND slot = ?',
-      [entry.localDate, entry.slot.id],
-    );
-    return rows.isEmpty ? 0 : rows.first['id'] as int;
   }
 
   void addFood(MealSlot slot, FoodItem food, double grams) {
@@ -135,14 +119,12 @@ class AppModel extends ChangeNotifier {
       final day = today.subtract(Duration(days: i));
       final morning = 61.2 - (20 - i) * 0.06;
       repo.saveWeight(
-        localDate: repoDateKey(day),
-        slot: WeightSlot.morning,
+        at: day.add(const Duration(hours: 7, minutes: 40)),
         weightKg: double.parse(morning.toStringAsFixed(1)),
       );
       if (i % 3 == 0) {
         repo.saveWeight(
-          localDate: repoDateKey(day),
-          slot: WeightSlot.evening,
+          at: day.add(const Duration(hours: 21, minutes: 10)),
           weightKg: double.parse((morning + 0.7).toStringAsFixed(1)),
         );
       }

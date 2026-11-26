@@ -30,21 +30,15 @@ String _link(String host, [Map<String, String> query = const {}]) =>
 
 final List<VoiceLink> voiceCatalog = [
   VoiceLink(
-    title: '记早上体重',
-    uri: _link('weight', {'slot': 'morning'}),
-    hint: '打开弹层，时段已选「早上」，只补一个数字',
+    title: '记体重',
+    uri: _link('weight'),
+    hint: '打开弹层，时间是现在，点「时间」可以改',
     writes: false,
   ),
   VoiceLink(
-    title: '记晚上体重',
-    uri: _link('weight', {'slot': 'evening'}),
-    hint: '打开弹层，时段已选「晚上」',
-    writes: false,
-  ),
-  VoiceLink(
-    title: '直接记体重（带数值）',
-    uri: _link('weight', {'slot': 'morning', 'kg': '60.4'}),
-    hint: '不弹表单，直接落库并给「撤销」；数值改成你实际的体重',
+    title: '记体重（带数值带时间）',
+    uri: _link('weight', {'kg': '60.4', 'time': '08:00'}),
+    hint: '不弹表单，直接落库并给「撤销」；数值和时间改成你实际的',
     writes: true,
   ),
   VoiceLink(
@@ -103,7 +97,7 @@ class VoicePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('小布 / 快捷指令')),
+      appBar: AppBar(title: const Text('快捷入口 / 小布')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           AppSpace.md,
@@ -118,14 +112,14 @@ class VoicePage extends StatelessWidget {
               children: [
                 const SectionHeader(
                   title: '手机上怎么接',
-                  caption: '不需要账号，也不需要联网',
+                  caption: '小布只能「打开应用」，打不开 smalljj:// 这种链接',
                 ),
                 const SizedBox(height: AppSpace.xs),
                 for (final step in const [
-                  '1. 对小布说「打开小布指令」，或用桌面图标进「小布指令」。',
-                  '2. 右上角「+」新建指令，触发方式选「一句话」，写你顺口的说法。',
-                  '3. 添加动作 → 找「打开链接 / 打开网页」，把下面任意一条粘进去。',
-                  '4. 保存后对小布说那句话，链接会直接进到这里的对应页面或直接落库。',
+                  '1. 长按桌面上的 SmallJJ 图标 → 4 条快捷方式，点「记体重」直达。',
+                  '2. 下拉状态栏 → 编辑磁贴 → 把「记体重」拖进来，之后点一下就到。',
+                  '3. 任何能打开链接的地方都能用：浏览器地址栏、扫码、笔记里的链接、adb，效果一样。',
+                  '4. 想要「一句话记体重」，小布那侧没有这个动作 —— 见下面那张卡。',
                 ])
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpace.xxs),
@@ -133,9 +127,10 @@ class VoicePage extends StatelessWidget {
                   ),
                 const SizedBox(height: AppSpace.sm),
                 Text(
-                  '如果当前 ColorOS 的「打开链接」只认 http/https，'
-                  '这一路就走不通；桌面快捷方式和 adb 仍然可用，'
-                  '下面每条都能用「自测」按钮先在本机验证。',
+                  '小布指令（com.coloros.shortcuts）里能选的动作只有「打开应用」这一类，'
+                  '没有能填 URL 的动作，所以把 scheme 填进小布这条路不成立；'
+                  '这一页以前写的教程是错的，已改。'
+                  '下面的链接仍然有用，而且每条都能用「自测」先在本机跑一遍。',
                   style: AppType.bodySmall,
                 ),
               ],
@@ -220,10 +215,11 @@ class VoicePage extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpace.xs),
                 Text(
-                  '意图框架要在开放平台申请 client_id/secret，由平台审核后下发意图名，'
-                  '且设计上是由小布侧执行、数据要出端。自用场景既拿不到审批，'
-                  '也和数据全留本机冲突，所以只做到「scheme 入口」这一层：'
-                  '小布负责唤起，解析和计算都在手机本地完成。',
+                  '「小布 → App 执行动作」在 OPPO 这边只有一条官方路：'
+                  '开放平台申请 client_id/secret，平台审核后下发意图名（意图共享/流体云/'
+                  '小布建议那套还要把数据推到 OPPO 云出卡）。自用场景拿不到审批，'
+                  '也和数据全留本机冲突。'
+                  '没有这条准入，小布就只能「打开 SmallJJ」，参数进不来。',
                   style: AppType.bodySmall,
                 ),
               ],
@@ -235,14 +231,6 @@ class VoicePage extends StatelessWidget {
   }
 }
 
-/// 当前时间在哪个时段：给「不带 slot 的链接」兜底
-String guessSlotLabel(AppModel model) {
-  final hour = model.now.hour;
-  if (hour < 11) return '早上';
-  if (hour >= 17) return '晚上';
-  return '任意';
-}
-
 /// 给「我的」页显示一行摘要
 String voiceSummary(AppModel model) =>
-    '${voiceCatalog.length} 个入口 · 当前会记到「${guessSlotLabel(model)}」';
+    '${voiceCatalog.length} 个入口 · 不带时间的一律记到当前时间';

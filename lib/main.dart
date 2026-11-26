@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/db.dart';
 import 'data/repository.dart';
@@ -24,6 +25,14 @@ class HealthApp extends StatelessWidget {
       title: 'SmallJJ 健康',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      // 系统弹窗（选日期）的文字要跟着中文走，否则日历里冒出 Cancel / OK。
+      locale: const Locale('zh', 'CN'),
+      supportedLocales: const [Locale('zh', 'CN')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: AppShell(model: model),
     );
   }

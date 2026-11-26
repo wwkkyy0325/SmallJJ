@@ -6,9 +6,11 @@ import 'package:flutter/services.dart';
 /// 全部支持的链接（大小写、中英别名都接受，解析见 [parseLink]）：
 ///
 ///   记体重（带数值 = 直接落库，不带 = 打开弹层预填）
-///     smalljj://weight?slot=morning&kg=60.4
-///     smalljj://weight?kg=60.4                 时段按当前钟点猜
-///     smalljj://record?slot=evening            兼容旧链接
+///     smalljj://weight?kg=60.4                 时间 = 现在
+///     smalljj://weight?kg=60.4&time=08:00      指定时刻
+///     smalljj://weight?date=2026-01-14&kg=60.4 补记哪天
+///     smalljj://weight                        只打开弹层，时间预填现在
+///     smalljj://weight?slot=morning            兼容旧链接（= 早上 8:00）
 ///
 ///   记饮食（带 text = 一句话解析后直接落库）
 ///     smalljj://food?meal=lunch&text=两个鸡蛋一杯牛奶

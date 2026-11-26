@@ -1,8 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../platform/app_intents.dart';
-import '../theme/tokens.dart';
 import 'app_model.dart';
+import 'common/app_nav_bar.dart';
 import 'intent_router.dart';
 import 'food_page.dart';
 import 'onboarding_page.dart';
@@ -67,50 +69,41 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       builder: (context, _) {
         final model = widget.model;
         if (!model.onboarded) return OnboardingPage(model: model);
+        // resizeToAvoidBottomInset 关掉：Scaffold 一旦理会键盘，就会连底栏
+        // 一起抬到键盘上面，或者因为安全区被扣成 0 而往下掉一格——
+        // 那是底栏唯一会「活动」的两个来源。现在键盘只影响下面这行 Padding：
+        // 页面区收窄到键盘上沿，底栏永远钉在屏幕底边（被键盘挡住就挡住）。
+        //
+        // 底栏仍然放在 bottomNavigationBar 这个槽位里，这样 Scaffold 知道
+        // 它有多高：SnackBar（保存后的撤销条）才会落在底栏上方，而不是盖住它。
+        final keyboard = math.max(
+          0.0,
+          MediaQuery.viewInsetsOf(context).bottom - AppNavBar.heightOf(context),
+        );
         return Scaffold(
-          body: SafeArea(
-            bottom: false,
-            child: IndexedStack(
-              index: _index,
-              children: [
-                TodayPage(
-                  model: model,
-                  onOpenTrend: () => setState(() => _index = 1),
-                  onOpenProfile: () => setState(() => _index = 3),
-                ),
-                WeightPage(model: model),
-                FoodPage(model: model),
-                ProfilePage(model: model, onRunLink: _onUri),
-              ],
+          resizeToAvoidBottomInset: false,
+          body: Padding(
+            padding: EdgeInsets.only(bottom: keyboard),
+            child: SafeArea(
+              bottom: false,
+              child: IndexedStack(
+                index: _index,
+                children: [
+                  TodayPage(
+                    model: model,
+                    onOpenTrend: () => setState(() => _index = 1),
+                    onOpenProfile: () => setState(() => _index = 3),
+                  ),
+                  WeightPage(model: model),
+                  FoodPage(model: model),
+                  ProfilePage(model: model, onRunLink: _onUri),
+                ],
+              ),
             ),
           ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: (value) => setState(() => _index = value),
-            backgroundColor: AppColor.surface,
-            indicatorColor: AppColor.brandSoft,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.today_outlined),
-                selectedIcon: Icon(Icons.today_rounded),
-                label: '今天',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.show_chart_rounded),
-                selectedIcon: Icon(Icons.show_chart_rounded),
-                label: '体重',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.restaurant_outlined),
-                selectedIcon: Icon(Icons.restaurant_rounded),
-                label: '饮食',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: '我的',
-              ),
-            ],
+          bottomNavigationBar: AppNavBar(
+            index: _index,
+            onSelected: (value) => setState(() => _index = value),
           ),
         );
       },

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:health_app/data/db.dart';
@@ -5,9 +6,11 @@ import 'package:health_app/data/models.dart';
 import 'package:health_app/data/repository.dart';
 import 'package:health_app/main.dart';
 import 'package:health_app/ui/app_model.dart';
+import 'package:health_app/theme/tokens.dart';
+import 'package:health_app/ui/common/anchor_popover.dart';
+import 'package:health_app/ui/common/weight_entry.dart';
 
 const testProfile = Profile(
-  sex: 'female',
   birthYear: 1996,
   heightCm: 165,
   activityLevel: 'light',
@@ -23,6 +26,38 @@ AppModel buildModel() => AppModel(
       ),
     );
 
+/// 首屏现在是「热量（上）+ 体重（下）」两张卡：默认 800×600 的测试窗口装不下
+/// 整页，体重框和「保存」会落到窗口外，tap 打不中。这里把窗口拉高到 800×1000
+/// （DPR 仍是 3，和真机一致），整页一屏可见；宽度没变，坐标断言照旧。
+void _usePhoneWindow(WidgetTester tester) {
+  tester.view.physicalSize = const Size(2400, 3000);
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+}
+
+/// 打开体重浮层，把整数列推 [whole] 格（1 kg）、小数列推 [cents] 格（0.01 kg），
+/// 再点浮层外面收起。体重没有输入框了，「记某个数」只能这么走。
+Future<void> pickKg(WidgetTester tester, {int whole = 0, int cents = 0}) async {
+  await tester.tap(find.byType(PickChip));
+  await tester.pumpAndSettle();
+  if (whole != 0) {
+    await tester.drag(
+      find.byType(CupertinoPicker).first,
+      Offset(0, -AppLayout.wheelRow * whole),
+    );
+    await tester.pumpAndSettle();
+  }
+  if (cents != 0) {
+    await tester.drag(
+      find.byType(CupertinoPicker).at(1),
+      Offset(0, -AppLayout.wheelRow * cents),
+    );
+    await tester.pumpAndSettle();
+  }
+  await tester.tapAt(const Offset(8, 8));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('首次启动进入引导，填完资料后进入今天页', (tester) async {
     final model = buildModel();
@@ -37,40 +72,145 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('开始'), findsOneWidget);
 
+    // 引导只问四项，体重不预填，用户自己敲
+    await tester.enterText(find.byType(TextField).last, '60');
     await tester.tap(find.text('开始'));
     await tester.pumpAndSettle();
 
-    // 引导完成后进主页：首屏是「今天」，预算与早晚两次入口都在
+    // 引导完成后进主页：首屏是「今天」，体重卡直接能填
     expect(find.text('今天'), findsWidgets);
     expect(find.text('今天还能吃'), findsOneWidget);
-    expect(find.text('早上'), findsOneWidget);
-    expect(find.text('晚上'), findsOneWidget);
+    expect(find.textContaining('现在'), findsOneWidget);
     expect(model.onboarded, isTrue);
-    expect(model.morningEntry, isNotNull);
+    expect(model.entries.first.weightKg, 60);
   });
 
-  testWidgets('记录晚上体重后首屏显示新数值', (tester) async {
+  testWidgets('第一次只填四项，其余资料在「我的」里改', (tester) async {
     final model = buildModel();
+    await tester.pumpWidget(HealthApp(model: model));
+
+    // 活动量/目标不在引导里拦人
+    expect(find.text('日常活动量'), findsNothing);
+    expect(find.byType(TextField), findsNWidgets(3));
+
+    await tester.enterText(find.byType(TextField).last, '60.42');
+    await tester.dragUntilVisible(
+      find.text('开始'),
+      find.byType(ListView),
+      const Offset(0, -200),
+    );
+    await tester.tap(find.text('开始'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('我的').last);
+    await tester.pumpAndSettle();
+    expect(find.text('日常活动量'), findsOneWidget);
+    expect(find.text('目标'), findsOneWidget);
+
+    // 出生年、身高、目标体重是「我的」里的前三个输入框
+    await tester.enterText(find.byType(TextField).at(1), '170');
+    await tester.ensureVisible(find.text('保存'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(model.profile!.heightCm, 170);
+    expect(model.entries.first.weightKg, 60.42);
+  });
+
+  testWidgets('首屏记一次体重，时间就是现在', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
     model.completeOnboarding(draft: testProfile, weightKg: 60);
     await tester.pumpWidget(HealthApp(model: model));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('60.0 kg'), findsWidgets);
+    // 首屏第二张卡是体重填写，引导里记的 60 显示为 60.00
+    expect(find.textContaining('60.00'), findsWidgets);
 
-    await tester.tap(find.text('晚上'));
-    await tester.pumpAndSettle();
-    expect(find.text('记录体重'), findsOneWidget);
-
-    await tester.enterText(find.byType(TextField).first, '60.8');
+    await pickKg(tester, cents: 83);
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
-    expect(model.eveningEntry, isNotNull);
-    expect(find.textContaining('60.8 kg'), findsWidgets);
+    expect(model.entries.first.weightKg, 60.83);
+    expect(model.entries.first.date.hour, 15);
+    expect(find.textContaining('60.83'), findsWidgets);
+  });
+
+  testWidgets('体重是滚轮选出来的两位小数，第三位根本不存在', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    // 小数那一列一格就是 0.01 kg：能选出来的最小单位是两位小数，
+    // 所以「第三位被过滤掉」这种事在这里不会发生——没有输入框可打字。
+    await pickKg(tester, cents: 23);
+    expect(find.text('60.23'), findsOneWidget);
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    final saved = model.entries.first;
+    expect(saved.localDate, model.todayKey);
+    expect(saved.weightKg, 60.23);
+  });
+
+  testWidgets('和上次差超过 3 kg 时先确认，取消就不落库', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    // 60 → 100：整数列推 40 格，和上一条差 40 kg，保存前先确认
+    await pickKg(tester, whole: 40);
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('确认这个体重'), findsOneWidget);
+    await tester.tap(find.text('改一下'));
+    await tester.pumpAndSettle();
+    expect(model.entries.length, 1);
+
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('就是这个数'));
+    await tester.pumpAndSettle();
+    expect(model.entries.first.weightKg, 100);
+  });
+
+  testWidgets('首屏时间入口是 24 小时滚轮：改小时就按那个时间落库', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('现在 15:00'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PopoverCard), findsOneWidget);
+
+    // 时列往上推一格：15 → 16（滚轮往上推是往后走）
+    await tester.drag(find.byType(CupertinoPicker).first, const Offset(0, -44));
+    await tester.pumpAndSettle();
+    // 没有「确定」：chip 上的字已经变了，点旁边收起就是完成
+    expect(find.text('确定'), findsNothing);
+    await tester.tapAt(const Offset(760, 560));
+    await tester.pumpAndSettle();
+    expect(find.text('16:00'), findsOneWidget);
+
+    await pickKg(tester, cents: 20);
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    final entry = model.entries.firstWhere((e) => e.weightKg == 60.2);
+    expect(entry.date.hour, 16);
+    expect(entry.date.minute, 0);
   });
 
   testWidgets('添加食物后今日摄入增加', (tester) async {
     final model = buildModel();
+    _usePhoneWindow(tester);
     model.completeOnboarding(draft: testProfile, weightKg: 60);
     await tester.pumpWidget(HealthApp(model: model));
     await tester.pumpAndSettle();
@@ -90,5 +230,76 @@ void main() {
 
     expect(model.meals.first.items, isNotEmpty);
     expect(model.facts!.todayIntake, greaterThan(0));
+  });
+
+  testWidgets('体重页「记一笔」和首屏是同一个表单：空框、同样式、能撤销', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    // 首屏那颗体重胶囊：值 + 单位都在胶囊上，不是输入框
+    final onToday = tester.widget<PickChip>(find.byType(PickChip));
+    expect(onToday.label, '60.00');
+    expect(onToday.unit, 'kg');
+
+    await tester.tap(find.text('体重').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('记一笔'));
+    await tester.pumpAndSettle();
+
+    // 弹层里是同一个控件：没有第二套输入框/按钮，连一个 TextField 都没有
+    expect(find.byType(WeightEntryForm), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    final inSheet = tester.widget<PickChip>(find.byType(PickChip));
+    expect(inSheet.label, onToday.label);
+    expect(inSheet.unit, onToday.unit);
+
+    await pickKg(tester, cents: 50);
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('记体重'), findsNothing);
+    expect(model.entries.first.weightKg, 60.5);
+    expect(find.textContaining('已记 今天'), findsOneWidget);
+
+    await tester.tap(find.text('撤销'));
+    await tester.pumpAndSettle();
+    expect(model.entries.first.weightKg, 60);
+  });
+
+  testWidgets('改已有的一条，撤销是把原值写回，不是删掉记录', (tester) async {
+    final model = buildModel();
+    _usePhoneWindow(tester);
+    model.completeOnboarding(draft: testProfile, weightKg: 60);
+    await tester.pumpWidget(HealthApp(model: model));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('体重').last);
+    await tester.pumpAndSettle();
+    final count = model.entries.length;
+
+    final tile = find.widgetWithText(ListTile, '今天 15:00').first;
+    await tester.ensureVisible(tile);
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+
+    // 改的时候标题是「改体重」，胶囊预填原值（只有编辑才预填）
+    expect(find.text('改体重'), findsOneWidget);
+    expect(tester.widget<PickChip>(find.byType(PickChip)).label, '60.00');
+
+    await pickKg(tester, cents: 80);
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(model.entries.length, count);
+    expect(model.entries.first.weightKg, 60.8);
+
+    await tester.tap(find.text('撤销'));
+    await tester.pumpAndSettle();
+    expect(model.entries.length, count);
+    expect(model.entries.first.weightKg, 60);
   });
 }

@@ -252,6 +252,83 @@ abstract final class AppLayout {
 
   /// 手指点击目标下限
   static const double tapMin = 48;
+
+  /// 一行输入框 / 主按钮的统一高度：两者并排或上下相邻时看起来是一套
+  static const double fieldHeight = 52;
+
+  /// 错误提示的常驻行高。
+  ///
+  /// 错误文字**不放在输入框自己的 decoration 里**：`InputDecoration.errorText`
+  /// 会把输入框撑高一行，下面所有东西跟着往下跳。这里给它一个固定行，
+  /// 没出错时也占位，于是「出错 / 没出错」只有颜色变化，没有位移。
+  static const double errorSlot = 20;
+
+  /// 一行里两个可点胶囊（时间 / 体重）的高度。
+  ///
+  /// 和 [fieldHeight] 一样高：它们和下面的「保存」按钮同宽同列，上下相邻时
+  /// 看起来是一套。宽度不写死——两个胶囊各占行宽的一半（`Expanded`），
+  /// 行宽由卡片或弹层决定，窄屏也不会顶出去、宽屏也不会留下一条空档。
+  static const double chipHeight = fieldHeight;
+
+  /// 底部导航：整栏钉在屏幕底边上，位置和高度只由这里决定。
+  ///
+  /// 栏的总高 = [navBarLine] + [navBarHeight] + 系统手势区（`viewPadding`）。
+  /// 键盘弹出时这个数一个像素都不改：页面区自己收窄，栏不动——
+  /// 否则一打字，四个栏目就整体上下挪一次。
+  static const double navBarLine = 1;
+  static const double navBarHeight = 64;
+
+  /// 栏目里的图标边长（选中/未选中同尺寸，切换时不会挤动文字）。
+  static const double navIcon = 24;
+
+  /// 底部弹层：位置（贴底、居中、限宽）与头部、内边距全部从这里取。
+  static const double sheetMaxWidth = 480;
+  static const double sheetGutter = AppSpace.lg;
+  static const double sheetTopPad = AppSpace.sm;
+  static const double sheetHeader = tapMin;
+  static const double sheetFooterGap = AppSpace.sm;
+  static const double sheetBottomPad = AppSpace.lg;
+
+  /// 弹层顶部至少留这么多，永远顶不到状态栏。
+  static const double sheetTopGap = 40;
+
+  /// 对话框：最大宽度 + 左右留白，窄屏按屏幕宽度收窄。
+  static const double dialogMaxWidth = 400;
+  static const double dialogInset = 28;
+  static const double dialogAction = 44;
+
+  /// ── 锚点浮层（改「时间 / 日期」这一层）─────────────────────────
+  ///
+  /// 和底部弹层的区别：浮层贴在被点的 chip 旁边、不压暗背景、没有「确定」，
+  /// 所以它必须够小——它只盖住自己那一小块，不接管整块屏幕。
+  ///
+  /// 浮层离屏幕边缘的最小距离。
+  static const double popoverInset = 8;
+
+  /// 浮层与锚点 chip 之间的缝。
+  static const double popoverGap = 6;
+
+  /// 浮层内容的内边距（左右）与底部那一行的高度。
+  static const double popoverPad = AppSpace.sm;
+  static const double popoverFooter = 36;
+
+  /// 滚轮一行的高度。浮层里的滚轮固定 3 行，上下两行只作参照，
+  /// 中间那一行才是当前值。
+  static const double wheelRow = 44;
+  static const double wheelRows = 3;
+
+  /// 时间浮层：两列「时 / 分」。
+  static const double timePopoverWidth = 188;
+  static const double timePopoverHeight =
+      AppSpace.xs + wheelRow * wheelRows + popoverFooter + AppSpace.xxs;
+
+  /// 日期浮层：三列「年 / 月 / 日」，每列都要放得下「2026年」。
+  static const double dayPopoverWidth = 240;
+  static const double dayPopoverHeight = timePopoverHeight;
+
+  /// 体重浮层：两列「整数 kg / 小数」，每列最多三位数字。
+  static const double kgPopoverWidth = 200;
+  static const double kgPopoverHeight = timePopoverHeight;
 }
 
 /// 图标尺寸
@@ -265,5 +342,11 @@ abstract final class AppIcon {
 abstract final class AppShadow {
   static const card = [
     BoxShadow(color: AppColor.shadow, blurRadius: 18, offset: Offset(0, 6)),
+  ];
+
+  /// 浮层浮在页面之上：两层投影，一层近距离描出边缘，一层远距离交代高度。
+  static const popover = [
+    BoxShadow(color: AppColor.shadow, blurRadius: 10, offset: Offset(0, 2)),
+    BoxShadow(color: AppColor.shadow, blurRadius: 32, offset: Offset(0, 12)),
   ];
 }

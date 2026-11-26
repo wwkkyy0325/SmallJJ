@@ -2,9 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../data/models.dart';
 import '../domain/weight_trend.dart';
 import '../theme/tokens.dart';
+import 'common/day_popover.dart';
 import 'common/surface_card.dart';
 import 'app_model.dart';
 import 'format.dart';
@@ -15,20 +15,27 @@ class WeightPage extends StatelessWidget {
 
   final AppModel model;
 
-  Future<void> _pickDate(BuildContext context) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: model.now,
-      firstDate: model.now.subtract(const Duration(days: 365)),
-      lastDate: model.now,
-      helpText: '选择要补记的日期',
+  /// 补记：先在按钮下方选日期（和时间 chip 用同一个浮层），再打开记体重弹层。
+  Future<void> _pickDate(BuildContext anchor) async {
+    DateTime? picked;
+    await showDayPopover(
+      anchor,
+      anchor: anchor,
+      initial: model.now,
+      now: model.now,
+      yearsBack: 1,
+      onChanged: (value) => picked = value,
     );
-    if (picked == null || !context.mounted) return;
+    if (picked == null || !anchor.mounted) return;
     await showWeightSheet(
-      context,
+      anchor,
       model,
-      slot: WeightSlot.morning,
-      localDate: repoDateKey(picked),
+      at: DateTime(
+        picked!.year,
+        picked!.month,
+        picked!.day,
+        model.now.hour,
+      ),
     );
   }
 
@@ -48,14 +55,9 @@ class WeightPage extends StatelessWidget {
           children: [
             Expanded(child: Text('体重', style: AppType.display)),
             FilledButton.icon(
-              onPressed: () =>
-                  showWeightSheet(context, model, slot: WeightSlot.morning),
+              onPressed: () => showWeightSheet(context, model),
               icon: const Icon(Icons.add_rounded, size: AppIcon.sm),
               label: const Text('记一笔'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColor.brandStrong,
-                minimumSize: const Size(0, 44),
-              ),
             ),
           ],
         ),
@@ -114,7 +116,7 @@ class WeightPage extends StatelessWidget {
                 label: '7 天变化',
                 value: model.facts?.weightTrendKgPerWeek == null
                     ? '—'
-                    : signed(model.facts!.weightTrendKgPerWeek! * 1, digits: 1),
+                    : signed(model.facts!.weightTrendKgPerWeek!, digits: 2),
                 unit: 'kg/周',
               ),
               _Summary(
@@ -132,10 +134,12 @@ class WeightPage extends StatelessWidget {
           children: [
             Text('记录', style: AppType.section),
             const Spacer(),
-            TextButton.icon(
-              onPressed: () => _pickDate(context),
-              icon: const Icon(Icons.event_rounded, size: AppIcon.sm),
-              label: const Text('补记某天'),
+            Builder(
+              builder: (button) => TextButton.icon(
+                onPressed: () => _pickDate(button),
+                icon: const Icon(Icons.event_rounded, size: AppIcon.sm),
+                label: const Text('补记某天'),
+              ),
             ),
           ],
         ),
@@ -144,14 +148,14 @@ class WeightPage extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(AppSpace.lg),
             child: Text(
-              '早上起床后称一次，晚上睡前再称一次。两天一次也能画出趋势。',
+              '称完随手记一笔就好，时间自动取现在，两天一次也能画出趋势。',
               style: AppType.bodySmall,
             ),
           )
         else
           for (final entry in model.entries)
             Dismissible(
-              key: ValueKey('${entry.localDate}-${entry.slot.id}'),
+              key: ValueKey(entry.id),
               direction: DismissDirection.endToStart,
               background: Container(
                 alignment: Alignment.centerRight,
@@ -160,29 +164,18 @@ class WeightPage extends StatelessWidget {
                 child: const Icon(Icons.delete_outline_rounded,
                     color: AppColor.onBrand),
               ),
-              onDismissed: (_) =>
-                  model.deleteWeight(entry.localDate, entry.slot),
+              onDismissed: (_) => model.deleteWeight(entry.id),
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(
-                  '${relativeDay(entry.date, model.now)} · ${entry.slot.label}',
+                  '${relativeDay(entry.date, model.now)} ${clockLabel(entry.date)}',
                   style: AppType.title,
-                ),
-                subtitle: Text(
-                  '${entry.date.hour.toString().padLeft(2, '0')}:'
-                  '${entry.date.minute.toString().padLeft(2, '0')} 称重',
-                  style: AppType.bodySmall,
                 ),
                 trailing: Text(
                   '${kgLabel(entry.weightKg)} kg',
                   style: AppType.metric,
                 ),
-                onTap: () => showWeightSheet(
-                  context,
-                  model,
-                  slot: entry.slot,
-                  localDate: entry.localDate,
-                ),
+                onTap: () => showWeightSheet(context, model, entry: entry),
               ),
             ),
         if (target != null)
@@ -295,7 +288,7 @@ class _WeightChartPainter extends CustomPainter {
       canvas.drawLine(Offset(left, gy), Offset(size.width - 6, gy), gridPaint);
       final label = TextPainter(
         text: TextSpan(
-          text: value.toStringAsFixed(1),
+          text: value.toStringAsFixed(2),
           style: AppType.micro.copyWith(fontSize: 9),
         ),
         textDirection: TextDirection.ltr,

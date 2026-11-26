@@ -34,6 +34,17 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+        <!-- 通知栏磁贴：小布没有「打开第三方 scheme」的动作，这里给一条不依赖助手的一步入口 -->
+        <service
+            android:name=".WeightTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_weight"
+            android:label="@string/tile_weight"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

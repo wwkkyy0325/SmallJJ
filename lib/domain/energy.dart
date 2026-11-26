@@ -10,15 +10,16 @@ const double kcalPerKgBodyMass = 7700;
 /// 年龄按「今天年份 − 出生年」算，误差最多一岁，对 BMR 影响 < 1%。
 int ageFromBirthYear(int birthYear, {required int year}) => year - birthYear;
 
-/// Mifflin-St Jeor（1990）。比 Harris-Benedict 对现代人群偏差更小。
-double bmrMifflinStJeor({
-  required bool female,
+/// Mifflin-St Jeor（1990）女性式：10W + 6.25H − 5A − 161。
+///
+/// 这个应用只服务女性，男式（+5）不再需要：少一个参数，就少一次「该传 true
+/// 还是 false」的误用。数值本身仍是同一篇论文的原始公式，没有改动。
+double bmrFemale({
   required double weightKg,
   required double heightCm,
   required int ageYears,
 }) {
-  final base = 10 * weightKg + 6.25 * heightCm - 5 * ageYears;
-  return female ? base - 161 : base + 5;
+  return 10 * weightKg + 6.25 * heightCm - 5 * ageYears - 161;
 }
 
 /// 活动系数（FAO/WHO 体力活动水平的常用近似）。
@@ -47,9 +48,9 @@ int daysBetween(DateTime from, DateTime to) =>
 /// 目标速率 → 每日缺口（负值代表盈余）。
 double deficitFromRate(double kgPerWeek) => kgPerWeek * kcalPerKgBodyMass / 7;
 
-/// 摄入下限。低于它长期执行会掉肌肉、掉代谢；这是保守阈值，
+/// 女性摄入下限。低于它长期执行会掉肌肉、掉代谢；这是保守阈值，
 /// 不是医学结论，界面上会明示「已按下限钳制」。
-double intakeFloor(bool female) => female ? 1200 : 1500;
+const double intakeFloorFemale = 1200;
 
 class EnergyPlan {
   const EnergyPlan({
@@ -91,10 +92,8 @@ EnergyPlan planEnergy({
   required int year,
   double? adaptiveTdee,
 }) {
-  final female = profile.isFemale;
   final age = ageFromBirthYear(profile.birthYear, year: year);
-  final bmr = bmrMifflinStJeor(
-    female: female,
+  final bmr = bmrFemale(
     weightKg: weightKg,
     heightCm: profile.heightCm,
     ageYears: age,
@@ -127,7 +126,7 @@ EnergyPlan planEnergy({
   }
 
   var budget = tdee - deficit;
-  final floor = intakeFloor(female);
+  const floor = intakeFloorFemale;
   if (budget < floor) {
     budget = floor;
     deficit = tdee - floor;

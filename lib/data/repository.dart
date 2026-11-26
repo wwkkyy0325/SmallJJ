@@ -6,6 +6,7 @@ import '../domain/analysis.dart';
 import '../domain/cycle.dart';
 import '../domain/energy.dart';
 import '../domain/weight_trend.dart';
+import '../domain/weight_input.dart';
 import 'models.dart';
 
 /// 唯一的数据入口。页面只调这里的方法，不写 SQL、不自己算能量。
@@ -25,7 +26,6 @@ class HealthRepository {
     if (rows.isEmpty) return null;
     final r = rows.first;
     return Profile(
-      sex: r['sex'] as String,
       birthYear: r['birth_year'] as int,
       heightCm: (r['height_cm'] as num).toDouble(),
       activityLevel: r['activity_level'] as String,
@@ -39,11 +39,11 @@ class HealthRepository {
 
   void saveProfile(Profile p) {
     db.execute(
-      'INSERT INTO profile (id, sex, birth_year, height_cm, activity_level, '
+      'INSERT INTO profile (id, birth_year, height_cm, activity_level, '
       'goal_mode, goal_weight_kg, goal_rate_kg_week, period_tracking, '
       'ai_narration, updated_at) '
-      'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
-      'ON CONFLICT(id) DO UPDATE SET sex=excluded.sex, '
+      'VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+      'ON CONFLICT(id) DO UPDATE SET '
       'birth_year=excluded.birth_year, height_cm=excluded.height_cm, '
       'activity_level=excluded.activity_level, goal_mode=excluded.goal_mode, '
       'goal_weight_kg=excluded.goal_weight_kg, '
@@ -51,7 +51,6 @@ class HealthRepository {
       'period_tracking=excluded.period_tracking, '
       'ai_narration=excluded.ai_narration, updated_at=excluded.updated_at',
       [
-        p.sex,
         p.birthYear,
         p.heightCm,
         p.activityLevel,
@@ -66,52 +65,63 @@ class HealthRepository {
   }
 
   // ── 体重 ───────────────────────────────────────────────────────────────
-  /// 同一天同一时段只留一条：再次记录即覆盖，避免「早上称了两次」出现两条曲线。
-  void saveWeight({
-    required String localDate,
-    required WeightSlot slot,
+  /// 记一次体重：只认「什么时候称的 + 多少 kg」。
+  ///
+  /// 传 [id] 表示改已有那条，否则新增一条。`local_date` 由称重时间推出，
+  /// 不再由调用方指定，避免「时间改了、日期没改」这种账。
+  /// 落库的值统一成两位小数，后面的均值/趋势不会带着浮点尾巴。
+  int saveWeight({
+    required DateTime at,
     required double weightKg,
     double? bodyFatPct,
-    int? measuredAt,
+    int? id,
     String? note,
   }) {
-    final ts = measuredAt ?? now.millisecondsSinceEpoch;
+    final ts = at.millisecondsSinceEpoch;
+    final kg = normalizeKg(weightKg);
+    final localDate = dateKey(at);
+    if (id != null) {
+      db.execute(
+        'UPDATE weight_entry SET local_date = ?, measured_at = ?, '
+        'weight_kg = ?, body_fat_pct = ?, note = ?, updated_at = ? '
+        'WHERE id = ?',
+        [localDate, ts, kg, bodyFatPct, note, now.millisecondsSinceEpoch, id],
+      );
+      return id;
+    }
     db.execute(
-      'INSERT INTO weight_entry (local_date, measured_at, slot, weight_kg, '
-      'body_fat_pct, note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?) '
-      'ON CONFLICT(local_date, slot) DO UPDATE SET '
-      'weight_kg=excluded.weight_kg, body_fat_pct=excluded.body_fat_pct, '
-      'measured_at=excluded.measured_at, note=excluded.note, '
-      'updated_at=excluded.updated_at',
-      [localDate, ts, slot.id, weightKg, bodyFatPct, note, ts, ts],
+      'INSERT INTO weight_entry (local_date, measured_at, weight_kg, '
+      'body_fat_pct, note, created_at, updated_at) VALUES (?,?,?,?,?,?,?)',
+      [localDate, ts, kg, bodyFatPct, note, ts, ts],
     );
+    return db.lastInsertRowId;
   }
 
   void deleteWeight(int id) {
     db.execute('DELETE FROM weight_entry WHERE id = ?', [id]);
   }
 
-  WeightEntry? weightOn(String localDate, WeightSlot slot) {
-    final rows = db.select(
-      'SELECT * FROM weight_entry WHERE local_date = ? AND slot = ?',
-      [localDate, slot.id],
-    );
-    if (rows.isEmpty) return null;
-    return _mapWeight(rows.first);
-  }
-
   WeightEntry _mapWeight(Row r) => WeightEntry(
+        id: r['id'] as int,
         localDate: r['local_date'] as String,
         measuredAt: r['measured_at'] as int,
-        slot: WeightSlot.fromId(r['slot'] as String),
         weightKg: (r['weight_kg'] as num).toDouble(),
         bodyFatPct: (r['body_fat_pct'] as num?)?.toDouble(),
       );
 
-  /// 按日期倒序的全部原始记录。
+  /// 某一天的全部记录，按时间正序。
+  List<WeightEntry> weightEntriesOn(String localDate) {
+    final rows = db.select(
+      'SELECT * FROM weight_entry WHERE local_date = ? ORDER BY measured_at',
+      [localDate],
+    );
+    return [for (final row in rows) _mapWeight(row)];
+  }
+
+  /// 按时间倒序的全部原始记录。
   List<WeightEntry> weightEntries({int limit = 200}) {
     final rows = db.select(
-      'SELECT * FROM weight_entry ORDER BY local_date DESC, measured_at DESC LIMIT ?',
+      'SELECT * FROM weight_entry ORDER BY measured_at DESC LIMIT ?',
       [limit],
     );
     return rows.map(_mapWeight).toList();
@@ -137,14 +147,6 @@ class HealthRepository {
           localDate: key,
           kg: grouped[key]!.fold(0.0, (s, e) => s + e.weightKg) /
               grouped[key]!.length,
-          morningKg: grouped[key]!
-              .where((e) => e.slot == WeightSlot.morning)
-              .map((e) => e.weightKg)
-              .firstOrNull,
-          eveningKg: grouped[key]!
-              .where((e) => e.slot == WeightSlot.evening)
-              .map((e) => e.weightKg)
-              .firstOrNull,
           entries: grouped[key]!,
         ),
     ];
@@ -441,8 +443,7 @@ class HealthRepository {
         .toList();
     final weight = weightOnOrBefore(date);
     if (weight == null || weights.length < 5) return null;
-    final bmr = bmrMifflinStJeor(
-      female: p.isFemale,
+    final bmr = bmrFemale(
       weightKg: weight,
       heightCm: p.heightCm,
       ageYears: ageFromBirthYear(p.birthYear, year: DateTime.parse(date).year),

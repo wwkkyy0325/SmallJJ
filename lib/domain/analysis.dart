@@ -81,7 +81,7 @@ List<Insight> runAnalysis(HealthFacts f) {
   }
 
   // 3. 摄入明显过低
-  if (f.todayItemCount > 0 && f.todayIntake < intakeFloor(f.profile.isFemale)) {
+  if (f.todayItemCount > 0 && f.todayIntake < intakeFloorFemale) {
     out.add(Insight(
       code: 'intake_too_low',
       severity: 'warn',

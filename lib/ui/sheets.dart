@@ -1,198 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../data/models.dart';
 import '../domain/food_parse.dart';
 import '../theme/tokens.dart';
 import 'app_model.dart';
-import 'format.dart';
+import 'common/app_dialog.dart';
+import 'common/app_sheet.dart';
+import 'common/weight_entry.dart';
 
-/// 记体重：早/晚/任意三档，同一天同一档再记即覆盖。
+/// 记体重：只有「时间 + 体重」两个值，时间是当前时间，点一下可以改。
+/// 传 [entry] 表示改已有那一条。
 Future<void> showWeightSheet(
   BuildContext context,
   AppModel model, {
-  required WeightSlot slot,
-  String? localDate,
+  WeightEntry? entry,
+  DateTime? at,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: AppColor.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
-    ),
-    builder: (context) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: _WeightSheet(
+  return showAppSheet<void>(
+    context,
+    title: entry == null ? '记体重' : '改体重',
+    // 高度按表单本身算出来：「记」和「改」、出错和没出错，弹层一样高、顶边在同一条线上。
+    bodyHeight: WeightEntryForm.stackedHeight,
+    // 键盘弹出或屏幕很矮时内容在弹层里滚动，弹层本身不跟着变。
+    body: (_) => SingleChildScrollView(
+      child: WeightEntryForm(
         model: model,
-        initialSlot: slot,
-        localDate: localDate ?? model.todayKey,
+        entry: entry,
+        at: at ?? entry?.date ?? model.now,
+        allowDate: true,
+        onSaved: () => Navigator.of(context).pop(),
       ),
     ),
   );
-}
-
-class _WeightSheet extends StatefulWidget {
-  const _WeightSheet({
-    required this.model,
-    required this.initialSlot,
-    required this.localDate,
-  });
-
-  final AppModel model;
-  final WeightSlot initialSlot;
-  final String localDate;
-
-  @override
-  State<_WeightSheet> createState() => _WeightSheetState();
-}
-
-class _WeightSheetState extends State<_WeightSheet> {
-  late WeightSlot _slot = widget.initialSlot;
-  late final TextEditingController _controller;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    final existing = widget.model.repo.weightOn(widget.localDate, _slot);
-    final last = widget.model.repo.latestWeightKg();
-    _controller = TextEditingController(
-      text: existing != null
-          ? kgLabel(existing.weightKg)
-          : last != null
-          ? kgLabel(last)
-          : '',
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _bump(double delta) {
-    final current = double.tryParse(_controller.text) ?? 0;
-    if (current <= 0) return;
-    _controller.text = kgLabel(current + delta);
-  }
-
-  void _save() {
-    final value = double.tryParse(_controller.text.trim());
-    if (value == null || value < 25 || value > 300) {
-      setState(() => _error = '请输入 25–300 之间的体重');
-      return;
-    }
-    widget.model.saveWeight(
-      slot: _slot,
-      kg: value,
-      localDate: widget.localDate,
-    );
-    Navigator.of(context).pop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isToday = widget.localDate == widget.model.todayKey;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpace.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    isToday ? '记录体重' : '补记 ${widget.localDate}',
-                    style: AppType.headline,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                  tooltip: '关闭',
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpace.md),
-            SegmentedButton<WeightSlot>(
-              segments: [
-                for (final slot in WeightSlot.values)
-                  ButtonSegment(value: slot, label: Text(slot.label)),
-              ],
-              selected: {_slot},
-              onSelectionChanged: (value) {
-                setState(() {
-                  _slot = value.first;
-                  final existing = widget.model.repo.weightOn(
-                    widget.localDate,
-                    _slot,
-                  );
-                  if (existing != null) {
-                    _controller.text = kgLabel(existing.weightKg);
-                  }
-                });
-              },
-            ),
-            const SizedBox(height: AppSpace.lg),
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-              ],
-              style: AppType.display,
-              decoration: const InputDecoration(
-                suffixText: 'kg',
-                border: OutlineInputBorder(),
-                hintText: '60.0',
-              ),
-              onSubmitted: (_) => _save(),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: AppSpace.xs),
-              Text(
-                _error!,
-                style: AppType.bodySmall.copyWith(color: AppColor.heart),
-              ),
-            ],
-            const SizedBox(height: AppSpace.sm),
-            Row(
-              children: [
-                OutlinedButton(
-                  onPressed: () => _bump(-0.1),
-                  child: const Text('−0.1'),
-                ),
-                const SizedBox(width: AppSpace.xs),
-                OutlinedButton(
-                  onPressed: () => _bump(0.1),
-                  child: const Text('+0.1'),
-                ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: _save,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColor.brandStrong,
-                    minimumSize: const Size(120, 48),
-                  ),
-                  child: const Text('保存'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpace.sm),
-            Text('同一天同一时段再记会覆盖上一条。早上起床后、晚上睡前各一次最稳定。', style: AppType.bodySmall),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// 记饮食：一句话解析 + 搜索 + 自建条目。
@@ -204,20 +43,15 @@ Future<void> showFoodSheet(
   required MealSlot slot,
   String? initialText,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: AppColor.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
-    ),
-    builder: (context) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: _FoodSheet(
-        model: model,
-        initialSlot: slot,
-        initialText: initialText,
-      ),
+  return showAppSheet<void>(
+    context,
+    title: '记录饮食',
+    bodyHeight: _FoodSheet.plannedHeight,
+    body: (height) => _FoodSheet(
+      model: model,
+      initialSlot: slot,
+      initialText: initialText,
+      height: height,
     ),
   );
 }
@@ -226,12 +60,35 @@ class _FoodSheet extends StatefulWidget {
   const _FoodSheet({
     required this.model,
     required this.initialSlot,
+    required this.height,
     this.initialText,
   });
+
+  /// 计划高度：搜索结果列表按它减去固定行数算出来，弹层不会因为
+  /// 「一句话解析出几个食物」而变高变矮。
+  static const double plannedHeight = 470;
+
+  /// 固定行合计：餐次 / 一句话 / 解析结果 / 列表外的说明 / 底部一行 / 新建入口。
+  static const double _fixed =
+      48 + // 餐次分段
+      AppSpace.sm +
+      AppLayout.fieldHeight + // 一句话输入
+      AppSpace.xs +
+      44 + // 解析结果行（空着也占位）
+      AppSpace.sm +
+      AppSpace.xs +
+      1 + // 分隔线
+      AppSpace.xs +
+      AppLayout.fieldHeight + // 所选食物 + 克数 + 添加
+      AppSpace.xxs +
+      AppLayout.tapMin; // 库里没有？新建一条
 
   final AppModel model;
   final MealSlot initialSlot;
   final String? initialText;
+
+  /// 弹层真正给这一段的高度（可能比 [plannedHeight] 小）。
+  final double height;
 
   @override
   State<_FoodSheet> createState() => _FoodSheetState();
@@ -301,35 +158,34 @@ class _FoodSheetState extends State<_FoodSheet> {
   Future<void> _createCustom() async {
     final name = TextEditingController();
     final kcal = TextEditingController();
-    final created = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('新建食物'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: name,
-              decoration: const InputDecoration(labelText: '名称'),
-            ),
-            TextField(
-              controller: kcal,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: '每 100 g 热量 (kcal)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+    final created = await showAppDialog<bool>(
+      context,
+      title: '新建食物',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: name,
+            decoration: const InputDecoration(labelText: '名称'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('保存'),
+          TextField(
+            controller: kcal,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: '每 100 g 热量 (kcal)'),
           ),
         ],
       ),
+      actions: [
+        DialogAction(
+          label: '取消',
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        DialogAction(
+          label: '保存',
+          primary: true,
+          onPressed: () => Navigator.of(context).pop(true),
+        ),
+      ],
     );
     if (created != true) return;
     final kcalValue = double.tryParse(kcal.text.trim());
@@ -348,145 +204,194 @@ class _FoodSheetState extends State<_FoodSheet> {
     final kcal = selected == null
         ? 0.0
         : selected.kcalPer100g * (double.tryParse(_grams.text) ?? 0) / 100;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpace.lg),
-        // 键盘弹出时整块可滚动，避免 BOTTOM OVERFLOWED。
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text('记录饮食', style: AppType.headline)),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
-                    tooltip: '关闭',
-                  ),
-                ],
+    // 列表吃掉固定行之外的全部高度：解析结果多一行、少一行都不影响弹层高度。
+    final listHeight = (widget.height - _FoodSheet._fixed).clamp(88.0, 260.0);
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 48,
+            child: SegmentedButton<MealSlot>(
+              segments: [
+                for (final meal in MealSlot.values)
+                  ButtonSegment(value: meal, label: Text(meal.label)),
+              ],
+              selected: {_slot},
+              showSelectedIcon: false,
+              onSelectionChanged: (value) =>
+                  setState(() => _slot = value.first),
+            ),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          SizedBox(
+            height: AppLayout.fieldHeight,
+            child: TextField(
+              controller: _text,
+              autofocus: true,
+              onChanged: _onTextChanged,
+              decoration: const InputDecoration(
+                labelText: '一句话记',
+                hintText: '两个鸡蛋一杯牛奶',
               ),
-              SegmentedButton<MealSlot>(
-                segments: [
-                  for (final meal in MealSlot.values)
-                    ButtonSegment(value: meal, label: Text(meal.label)),
-                ],
-                selected: {_slot},
-                showSelectedIcon: false,
-                onSelectionChanged: (value) =>
-                    setState(() => _slot = value.first),
-              ),
-              const SizedBox(height: AppSpace.md),
-              TextField(
-                controller: _text,
-                autofocus: true,
-                onChanged: _onTextChanged,
-                decoration: const InputDecoration(
-                  labelText: '一句话记',
-                  hintText: '两个鸡蛋一杯牛奶',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              if (_mentions.isNotEmpty) ...[
-                const SizedBox(height: AppSpace.xs),
-                Wrap(
-                  spacing: AppSpace.xs,
-                  children: [
-                    for (final mention in _mentions)
-                      ActionChip(
-                        label: Text(
-                          '${mention.name} ×${mention.quantity.toStringAsFixed(mention.quantity % 1 == 0 ? 0 : 1)}${mention.unit ?? ''}',
+            ),
+          ),
+          const SizedBox(height: AppSpace.xs),
+          // 解析结果固定占一行：横着滑，不换行，弹层不会因为它变高。
+          SizedBox(height: 44, child: _mentionsRow()),
+          const SizedBox(height: AppSpace.sm),
+          SizedBox(
+            height: listHeight,
+            child: _results.isEmpty
+                ? Align(
+                    alignment: Alignment.topLeft,
+                    child: Text('没搜到，换个说法或新建一条', style: AppType.bodySmall),
+                  )
+                : ListView.builder(
+                    itemCount: _results.length,
+                    itemBuilder: (context, index) {
+                      final food = _results[index];
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(food.name),
+                        subtitle: Text(
+                          '${food.kcalPer100g.round()} kcal/100g · '
+                          '一份 ${food.defaultPortionG.round()} g'
+                          '${food.isCustom ? ' · 自建' : ''}',
+                          style: AppType.bodySmall,
                         ),
-                        onPressed: () {
-                          final matches = widget.model.repo.searchFoods(
-                            mention.name,
-                            limit: 1,
-                          );
-                          if (matches.isEmpty) return;
-                          _pick(
-                            matches.first,
-                            mention
-                                .gramsWith(matches.first.defaultPortionG)
-                                .roundToDouble(),
-                          );
-                        },
-                      ),
-                  ],
+                        trailing: selected?.id == food.id
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: AppColor.brand,
+                              )
+                            : null,
+                        onTap: () => _pick(food, food.defaultPortionG),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: AppSpace.xs),
+          const Divider(height: 1),
+          const SizedBox(height: AppSpace.xs),
+          SizedBox(
+            height: AppLayout.fieldHeight,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selected == null
+                        ? '选择一种食物，或直接搜索'
+                        : '${selected.name} · ${kcal.round()} kcal',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: selected == null
+                        ? AppType.bodySmall
+                        : AppType.title,
+                  ),
+                ),
+                SizedBox(
+                  width: 88,
+                  height: AppLayout.fieldHeight,
+                  child: TextField(
+                    controller: _grams,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(suffixText: 'g'),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.xs),
+                SizedBox(
+                  width: 84,
+                  child: FilledButton(
+                    // 按钮宽度是按两个字算死的，去掉默认左右内边距，
+                    // 免得「添加」被挤成两行、上下裁掉。
+                    style: FilledButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, AppLayout.fieldHeight),
+                    ),
+                    onPressed: selected == null ? null : _add,
+                    child: const Text('添加', maxLines: 1, softWrap: false),
+                  ),
                 ),
               ],
-              const SizedBox(height: AppSpace.sm),
-              SizedBox(
-                height: 176,
-                child: ListView.builder(
-                  itemCount: _results.length,
-                  itemBuilder: (context, index) {
-                    final food = _results[index];
-                    return ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(food.name),
-                      subtitle: Text(
-                        '${food.kcalPer100g.round()} kcal/100g · '
-                        '一份 ${food.defaultPortionG.round()} g'
-                        '${food.isCustom ? ' · 自建' : ''}',
-                        style: AppType.bodySmall,
-                      ),
-                      trailing: selected?.id == food.id
-                          ? const Icon(
-                              Icons.check_rounded,
-                              color: AppColor.brand,
-                            )
-                          : null,
-                      onTap: () => _pick(food, food.defaultPortionG),
-                    );
-                  },
-                ),
+            ),
+          ),
+          SizedBox(
+            height: AppLayout.tapMin,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _createCustom,
+                icon: const Icon(Icons.add_rounded, size: AppIcon.sm),
+                label: const Text('库里没有？新建一条'),
               ),
-              const Divider(height: AppSpace.lg),
-              Row(
-                children: [
-                  Expanded(
-                    child: selected == null
-                        ? Text('选择一种食物，或直接搜索', style: AppType.bodySmall)
-                        : Text(
-                            '${selected.name} · ${kcal.round()} kcal',
-                            style: AppType.title,
-                          ),
-                  ),
-                  SizedBox(
-                    width: 92,
-                    child: TextField(
-                      controller: _grams,
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        suffixText: 'g',
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpace.xs),
-                  FilledButton(
-                    onPressed: selected == null ? null : _add,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColor.brandStrong,
-                      minimumSize: const Size(72, 48),
-                    ),
-                    child: const Text('添加'),
-                  ),
-                ],
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _createCustom,
-                  icon: const Icon(Icons.add_rounded, size: AppIcon.sm),
-                  label: const Text('库里没有？新建一条'),
-                ),
-              ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mentionsRow() {
+    if (_mentions.isEmpty) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Text('解析结果会出现在这一行', style: AppType.bodySmall),
+      );
+    }
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: _mentions.length,
+      separatorBuilder: (context, index) => const SizedBox(width: AppSpace.xs),
+      itemBuilder: (context, index) {
+        final mention = _mentions[index];
+        final quantity = mention.quantity.toStringAsFixed(
+          mention.quantity % 1 == 0 ? 0 : 1,
+        );
+        return _MentionChip(
+          label: '${mention.name} ×$quantity${mention.unit ?? ''}',
+          onTap: () {
+            final matches = widget.model.repo.searchFoods(
+              mention.name,
+              limit: 1,
+            );
+            if (matches.isEmpty) return;
+            _pick(
+              matches.first,
+              mention.gramsWith(matches.first.defaultPortionG).roundToDouble(),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// 解析结果的小标签：高度固定在一个 44 的行里，不参与换行。
+class _MentionChip extends StatelessWidget {
+  const _MentionChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: AppColor.surfaceMuted,
+        borderRadius: AppRadius.pillAll,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.sm,
+              vertical: AppSpace.xs,
+            ),
+            child: Text(label, style: AppType.bodySmall),
           ),
         ),
       ),
@@ -499,22 +404,19 @@ Future<void> showInsightDetail(BuildContext context, Insight insight) {
   final evidence = insight.evidence.entries
       .map((entry) => '${entry.key} = ${entry.value}')
       .join('\n');
-  return showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('依据'),
-      content: Text(
-        insight.evidence.isEmpty
-            ? '这条来自你的记录状态，没有额外数字。'
-            : '$evidence\n\n文案仅由规则引擎生成，模型不参与数字计算。',
-        style: AppType.body,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('知道了'),
-        ),
-      ],
+  return showAppDialog<void>(
+    context,
+    title: '依据',
+    content: Text(
+      insight.evidence.isEmpty
+          ? '这条来自你的记录状态，没有额外数字。'
+          : '$evidence\n\n文案仅由规则引擎生成，模型不参与数字计算。',
     ),
+    actions: [
+      DialogAction(
+        label: '知道了',
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+    ],
   );
 }

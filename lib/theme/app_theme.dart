@@ -64,6 +64,26 @@ ThemeData buildAppTheme() {
       space: 1,
     ),
     iconTheme: const IconThemeData(color: AppColor.inkMuted, size: 22),
+    // 所有输入框一套外观：圆角描边 + 淡底 + 统一内边距。
+    // 只在这里定义一次，字段那边只写 label / hint / suffix。
+    inputDecorationTheme: InputDecorationThemeData(
+      filled: true,
+      fillColor: AppColor.canvas,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.md,
+        vertical: AppSpace.sm,
+      ),
+      hintStyle: AppType.body.copyWith(color: AppColor.inkFaint),
+      labelStyle: AppType.bodySmall.copyWith(color: AppColor.inkMuted),
+      suffixStyle: AppType.body.copyWith(color: AppColor.inkMuted),
+      border: appFieldBorder(AppColor.line, 1),
+      enabledBorder: appFieldBorder(AppColor.line, 1),
+      disabledBorder: appFieldBorder(AppColor.line, 1),
+      focusedBorder: appFieldBorder(AppColor.brand, 2),
+      errorBorder: appFieldBorder(AppColor.heart, 1),
+      focusedErrorBorder: appFieldBorder(AppColor.heart, 2),
+    ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: AppColor.brandStrong,
@@ -100,6 +120,24 @@ ThemeData buildAppTheme() {
       ),
       trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
     ),
+    // 对话框：形状、留白、字号都在这里定，两个业务对话框不再各写一套。
+    dialogTheme: DialogThemeData(
+      backgroundColor: AppColor.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.lgAll),
+      titleTextStyle: AppType.headline,
+      contentTextStyle: AppType.body,
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.dialogInset,
+        vertical: AppSpace.lg,
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(
+        AppSpace.md,
+        0,
+        AppSpace.md,
+        AppSpace.md,
+      ),
+    ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: AppColor.ink,
       contentTextStyle: AppType.body.copyWith(color: AppColor.surface),
@@ -112,3 +150,13 @@ ThemeData buildAppTheme() {
     materialTapTargetSize: MaterialTapTargetSize.padded,
   );
 }
+
+/// 输入框描边：圆角沿用 AppRadius.smAll，粗细区分「常态 / 聚焦」。
+///
+/// 公开给输入框控件用：出错时控件自己把描边换成红色，而不是让 decoration
+/// 画一行错误文字（那一行会把输入框撑高）。
+OutlineInputBorder appFieldBorder(Color color, double width) =>
+    OutlineInputBorder(
+  borderRadius: AppRadius.smAll,
+  borderSide: BorderSide(color: color, width: width),
+);

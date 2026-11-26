@@ -9,15 +9,17 @@ DailyWeight day(int month, int d, double kg) => DailyWeight(
       entries: const [],
     );
 
-DailyWeight entryOf(DateTime date, double kg, WeightSlot slot) => DailyWeight(
+DailyWeight entryOf(DateTime date, double kg) => DailyWeight(
       localDate: dateKey(date),
       kg: kg,
-      entries: [WeightEntry(
-        localDate: dateKey(date),
-        measuredAt: date.millisecondsSinceEpoch,
-        slot: slot,
-        weightKg: kg,
-      )],
+      entries: [
+        WeightEntry(
+          id: 1,
+          localDate: dateKey(date),
+          measuredAt: date.millisecondsSinceEpoch,
+          weightKg: kg,
+        ),
+      ],
     );
 
 void main() {
@@ -59,9 +61,10 @@ void main() {
     expect(trendRateKgPerWeek(points), isNull);
   });
 
-  test('早上/晚上两次称重都保留，日值取均值', () {
-    final d = entryOf(DateTime(2026, 1, 5), 60.4, WeightSlot.morning);
+  test('同一天多次称重的记录都留在 entries 里', () {
+    final d = entryOf(DateTime(2026, 1, 5, 8), 60.4);
     expect(d.kg, 60.4);
-    expect(d.entries.single.slot, WeightSlot.morning);
+    expect(d.entries.single.weightKg, 60.4);
+    expect(d.entries.single.date.hour, 8);
   });
 }

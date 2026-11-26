@@ -1,23 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-/// 体重记录时段。早/晚是两次固定锚点，其余都归到「任意」，
-/// 同一天同一时段只保留一条（写入用 upsert 覆盖）。
-enum WeightSlot {
-  morning('morning', '早上'),
-  evening('evening', '晚上'),
-  other('other', '任意');
-
-  const WeightSlot(this.id, this.label);
-
-  final String id;
-  final String label;
-
-  static WeightSlot fromId(String id) => WeightSlot.values.firstWhere(
-        (slot) => slot.id == id,
-        orElse: () => WeightSlot.other,
-      );
-}
-
 enum MealSlot {
   breakfast('breakfast', '早餐'),
   lunch('lunch', '午餐'),
@@ -35,22 +17,21 @@ enum MealSlot {
       );
 }
 
+/// 身体资料。**没有性别字段**：这个应用只服务女性，BMR 固定用 Mifflin-St Jeor
+/// 的女式，问一句「男/女」只会多一次点击、多一个可能填错的字段。
 @immutable
 class Profile {
   const Profile({
-    required this.sex,
     required this.birthYear,
     required this.heightCm,
     required this.activityLevel,
     required this.goalMode,
     required this.goalRateKgWeek,
     this.goalWeightKg,
-    this.periodTracking = false,
+    this.periodTracking = true,
     this.aiNarration = true,
   });
 
-  /// 'female' / 'male'，只用于 BMR 公式
-  final String sex;
   final int birthYear;
   final double heightCm;
 
@@ -64,10 +45,7 @@ class Profile {
   final bool periodTracking;
   final bool aiNarration;
 
-  bool get isFemale => sex == 'female';
-
   Profile copyWith({
-    String? sex,
     int? birthYear,
     double? heightCm,
     String? activityLevel,
@@ -78,7 +56,6 @@ class Profile {
     bool? aiNarration,
   }) {
     return Profile(
-      sex: sex ?? this.sex,
       birthYear: birthYear ?? this.birthYear,
       heightCm: heightCm ?? this.heightCm,
       activityLevel: activityLevel ?? this.activityLevel,
@@ -94,17 +71,18 @@ class Profile {
 @immutable
 class WeightEntry {
   const WeightEntry({
+    required this.id,
     required this.localDate,
     required this.measuredAt,
-    required this.slot,
     required this.weightKg,
     this.bodyFatPct,
   });
 
-  /// 'YYYY-MM-DD'，设备本地日期
+  final int id;
+
+  /// 'YYYY-MM-DD'，设备本地日期，由 [measuredAt] 推出（不再单独指定）
   final String localDate;
   final int measuredAt;
-  final WeightSlot slot;
   final double weightKg;
   final double? bodyFatPct;
 
@@ -118,14 +96,10 @@ class DailyWeight {
     required this.localDate,
     required this.kg,
     required this.entries,
-    this.morningKg,
-    this.eveningKg,
   });
 
   final String localDate;
   final double kg;
-  final double? morningKg;
-  final double? eveningKg;
   final List<WeightEntry> entries;
 
   DateTime get date => DateTime.parse(localDate);

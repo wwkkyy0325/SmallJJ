@@ -5,6 +5,7 @@ import '../domain/energy.dart';
 import '../domain/food_parse.dart';
 import '../platform/app_intents.dart';
 import 'app_model.dart';
+import 'common/snack.dart';
 import 'format.dart';
 import 'sheets.dart';
 
@@ -44,14 +45,13 @@ class IntentRouter {
   // ── 体重 ────────────────────────────────────────────────────────────────
 
   Future<void> _weight(BuildContext context, SmalljjLink link) async {
-    final date = _dateOf(link.firstOf(['date', 'day', '日期'])) ?? model.todayKey;
-    final slot = _slotOf(link.firstOf(['slot', 'when', '时段'])) ?? _guessSlot();
+    final at = _atOf(link);
     final kg = _kgOf(link.firstOf(['kg', 'weight', 'value', 'w', '体重']));
 
     if (kg == null) {
-      // 没给数值：打开弹层，时段已经选好，用户只补一个数字。
+      // 没给数值：打开弹层，时间已经填好，用户只补一个数字。
       onTab(0);
-      await showWeightSheet(context, model, slot: slot, localDate: date);
+      await showWeightSheet(context, model, at: at);
       return;
     }
     if (kg < 25 || kg > 300) {
@@ -60,30 +60,19 @@ class IntentRouter {
       return;
     }
 
-    final previous = model.repo.weightOn(date, slot);
-    model.saveWeight(slot: slot, kg: kg, localDate: date);
-    _undo = (
-      label: '体重 ${slot.label}',
-      run: () {
-        if (previous == null) {
-          model.deleteWeight(date, slot);
-        } else {
-          model.saveWeight(
-            slot: slot,
-            kg: previous.weightKg,
-            localDate: date,
-          );
-        }
-      },
-    );
+    final id = model.saveWeight(at: at, kg: kg);
+    _undo = (label: '体重', run: () => model.deleteWeight(id));
 
-    final dayLabel = date == model.todayKey ? '今天' : _monthDayOfKey(date);
-    final change = previous == null
-        ? ''
-        : '（原 ${kgLabel(previous.weightKg)}）';
+    final dayLabel = repoDateKey(at) == model.todayKey
+        ? '今天'
+        : _monthDayOfKey(repoDateKey(at));
     onTab(0);
-    _snack(context, '已记 $dayLabel${slot.label} ${kgLabel(kg)} kg$change', undo: true);
-    AppIntents.speak('已记${slot.label}体重 ${kgLabel(kg)} 公斤');
+    _snack(
+      context,
+      '已记 $dayLabel ${clockLabel(at)} ${kgLabel(kg)} kg',
+      undo: true,
+    );
+    AppIntents.speak('已记体重 ${kgLabel(kg)} 公斤');
   }
 
   // ── 饮食 ────────────────────────────────────────────────────────────────
@@ -247,7 +236,7 @@ class IntentRouter {
     final base = trend.where((p) => !p.date.isAfter(weekAgo)).toList();
     if (base.isEmpty) return null;
     final delta = last.trendKg - base.last.trendKg;
-    return '${signed(delta)} 公斤/周';
+    return '${signed(delta, digits: 2)} 公斤/周';
   }
 
   // ── 撤销 ────────────────────────────────────────────────────────────────
@@ -275,28 +264,57 @@ class IntentRouter {
 
   // ── 参数解析 ────────────────────────────────────────────────────────────
 
-  WeightSlot? _slotOf(String? raw) {
-    if (raw == null) return null;
-    final value = raw.toLowerCase();
-    if (value == 'morning' || value == 'am' || value == '早上' || value == '早' ||
-        value == '早晨') {
-      return WeightSlot.morning;
+  /// 链接里的时间：`date`/`day` 给日期，`time`/`at` 给时刻。都没给就是现在。
+  ///
+  /// 旧的 `slot=morning|evening` 还能用，只是翻译成一个钟点：
+  /// 早上 8:00、晚上 20:00、任意 = 现在。桌面快捷方式已经装在手机上，
+  /// 不能因为这边改了口径就点不动。
+  DateTime _atOf(SmalljjLink link) {
+    final now = model.now;
+    final rawDate =
+        link.firstOf(['date', 'day', '日期']) ?? model.todayKey;
+    final parsed = DateTime.tryParse(rawDate);
+    final day = parsed == null
+        ? now
+        : DateTime(parsed.year, parsed.month, parsed.day);
+
+    final rawTime = link.firstOf(['time', 'at', '时间']);
+    final clock = rawTime == null ? null : _clockOf(rawTime);
+    if (clock != null) {
+      return DateTime(day.year, day.month, day.day, clock.$1, clock.$2);
     }
-    if (value == 'evening' || value == 'pm' || value == '晚上' || value == '晚' ||
-        value == '睡前') {
-      return WeightSlot.evening;
+    final legacy = link.firstOf(['slot', 'when', '时段']);
+    final hour = switch (legacy?.toLowerCase()) {
+      'morning' || 'am' || '早上' || '早' || '早晨' => 8,
+      'evening' || 'pm' || '晚上' || '晚' || '睡前' => 20,
+      _ => null,
+    };
+    if (hour != null) {
+      return DateTime(day.year, day.month, day.day, hour);
     }
-    if (value == 'other' || value == 'any' || value == '任意' || value == '现在') {
-      return WeightSlot.other;
-    }
-    return null;
+    // 没指定时间的「今天」就是此刻，精度到分钟以外也不丢
+    if (repoDateKey(day) == model.todayKey) return now;
+    return DateTime(day.year, day.month, day.day, 9);
   }
 
-  WeightSlot _guessSlot() {
-    final hour = model.now.hour;
-    if (hour < 11) return WeightSlot.morning;
-    if (hour >= 17) return WeightSlot.evening;
-    return WeightSlot.other;
+  /// `08:30` / `8:30` / `0830` → (8, 30)
+  (int, int)? _clockOf(String raw) {
+    final text = raw.trim();
+    final match = RegExp(r'^(\d{1,2})[:：](\d{2})$').firstMatch(text);
+    if (match != null) {
+      final hour = int.parse(match.group(1)!);
+      final minute = int.parse(match.group(2)!);
+      if (hour > 23 || minute > 59) return null;
+      return (hour, minute);
+    }
+    final compact = RegExp(r'^(\d{2})(\d{2})$').firstMatch(text);
+    if (compact != null) {
+      final hour = int.parse(compact.group(1)!);
+      final minute = int.parse(compact.group(2)!);
+      if (hour > 23 || minute > 59) return null;
+      return (hour, minute);
+    }
+    return null;
   }
 
   MealSlot? _mealOf(String? raw) {
@@ -363,11 +381,12 @@ class IntentRouter {
   }) {
     if (!context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
+    showSnack(
+      messenger,
       SnackBar(
         content: Text(text),
         duration: Duration(seconds: seconds),
+        persist: false,
         action: undo
             ? SnackBarAction(
                 label: '撤销',

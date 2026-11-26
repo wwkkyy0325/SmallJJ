@@ -3,7 +3,6 @@ import 'package:health_app/data/models.dart';
 import 'package:health_app/domain/energy.dart';
 
 const profile = Profile(
-  sex: 'female',
   birthYear: 1996,
   heightCm: 165,
   activityLevel: 'light',
@@ -15,30 +14,15 @@ void main() {
   group('BMR / TDEE', () {
     test('Mifflin-St Jeor 女 60kg 165cm 30 岁 = 1320.25', () {
       expect(
-        bmrMifflinStJeor(
-          female: true,
-          weightKg: 60,
-          heightCm: 165,
-          ageYears: 30,
-        ),
+        bmrFemale(weightKg: 60, heightCm: 165, ageYears: 30),
         closeTo(1320.25, 0.001),
       );
     });
 
-    test('男性同参数比女性高 166', () {
-      final female = bmrMifflinStJeor(
-        female: true,
-        weightKg: 60,
-        heightCm: 165,
-        ageYears: 30,
-      );
-      final male = bmrMifflinStJeor(
-        female: false,
-        weightKg: 60,
-        heightCm: 165,
-        ageYears: 30,
-      );
-      expect(male - female, closeTo(166, 0.001));
+    test('体重每多 1 kg，BMR 高 10 kcal', () {
+      final light = bmrFemale(weightKg: 60, heightCm: 165, ageYears: 30);
+      final heavy = bmrFemale(weightKg: 61, heightCm: 165, ageYears: 30);
+      expect(heavy - light, closeTo(10, 0.001));
     });
 
     test('活动系数单调', () {

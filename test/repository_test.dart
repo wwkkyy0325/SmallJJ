@@ -7,7 +7,6 @@ HealthRepository buildRepo({DateTime? at}) {
   final db = openTestDatabase();
   final repo = HealthRepository(db, clock: () => at ?? DateTime(2026, 1, 15, 15));
   repo.saveProfile(const Profile(
-    sex: 'female',
     birthYear: 1996,
     heightCm: 165,
     activityLevel: 'light',
@@ -28,30 +27,57 @@ void main() {
     expect(repo.searchFoods('西红柿').first.name, '番茄');
   });
 
-  test('同一天同一时段再记录是覆盖，不是新增', () {
-    final repo = buildRepo();
-    repo.saveWeight(
-      localDate: '2026-01-15',
-      slot: WeightSlot.morning,
-      weightKg: 60.2,
-    );
-    repo.saveWeight(
-      localDate: '2026-01-15',
-      slot: WeightSlot.morning,
-      weightKg: 60.4,
-    );
-    expect(repo.weightEntries().length, 1);
-    expect(repo.weightOn('2026-01-15', WeightSlot.morning)!.weightKg, 60.4);
+  test('资料表没有性别列：v3 迁移把旧库里的 sex 拆掉了', () {
+    final db = openTestDatabase();
+    final columns =
+        db.select('PRAGMA table_info(profile)').map((r) => r['name']).toList();
+    expect(columns, isNot(contains('sex')));
+    // 其余列原样保留，经期开关默认开
+    expect(columns, containsAll(['birth_year', 'height_cm', 'period_tracking']));
   });
 
-  test('早上和晚上各一条，日值取均值', () {
+  test('同一分钟再记是两条，改的只有带上 id 那条', () {
     final repo = buildRepo();
-    repo.saveWeight(localDate: '2026-01-15', slot: WeightSlot.morning, weightKg: 60.0);
-    repo.saveWeight(localDate: '2026-01-15', slot: WeightSlot.evening, weightKg: 61.0);
+    final id = repo.saveWeight(
+      at: DateTime(2026, 1, 15, 8, 30),
+      weightKg: 60.2,
+    );
+    repo.saveWeight(at: DateTime(2026, 1, 15, 8, 30), weightKg: 60.4);
+    expect(repo.weightEntries().length, 2);
+    // 改已有那条：时间也跟着改
+    repo.saveWeight(
+      at: DateTime(2026, 1, 15, 9, 5),
+      weightKg: 60.6,
+      id: id,
+    );
+    expect(repo.weightEntries().length, 2);
+    final edited = repo
+        .weightEntriesOn('2026-01-15')
+        .firstWhere((entry) => entry.id == id);
+    expect(edited.id, id);
+    expect(edited.weightKg, 60.6);
+    expect(edited.date.hour, 9);
+  });
+
+  test('落库的体重统一成两位小数', () {
+    final repo = buildRepo();
+    repo.saveWeight(at: DateTime(2026, 1, 15, 8), weightKg: 60.427);
+    repo.saveWeight(
+      at: DateTime(2026, 1, 15, 21),
+      weightKg: 70 - 3 * 0.1, // 69.70000000000002
+    );
+    final day = repo.weightEntriesOn('2026-01-15');
+    expect(day.first.weightKg, 60.43);
+    expect(day.last.weightKg, 69.7);
+  });
+
+  test('同一天记两次，日值取均值', () {
+    final repo = buildRepo();
+    repo.saveWeight(at: DateTime(2026, 1, 15, 8), weightKg: 60.0);
+    repo.saveWeight(at: DateTime(2026, 1, 15, 21), weightKg: 61.0);
     final daily = repo.dailyWeights();
     expect(daily.single.kg, closeTo(60.5, 0.001));
-    expect(daily.single.morningKg, 60.0);
-    expect(daily.single.eveningKg, 61.0);
+    expect(daily.single.entries.length, 2);
   });
 
   test('记录食物：热量 = 每 100 g × 克数，落库后不再变', () {
@@ -85,10 +111,9 @@ void main() {
 
   test('当日预算落库后不再被改资料改写', () {
     final repo = buildRepo();
-    repo.saveWeight(localDate: '2026-01-15', slot: WeightSlot.morning, weightKg: 60);
+    repo.saveWeight(at: DateTime(2026, 1, 15, 8), weightKg: 60);
     final before = repo.targetFor('2026-01-15');
     repo.saveProfile(const Profile(
-      sex: 'female',
       birthYear: 1996,
       heightCm: 165,
       activityLevel: 'moderate',
@@ -124,7 +149,7 @@ void main() {
 
   test('超预算会给出警示并带证据数字', () {
     final repo = buildRepo();
-    repo.saveWeight(localDate: '2026-01-15', slot: WeightSlot.morning, weightKg: 60);
+    repo.saveWeight(at: DateTime(2026, 1, 15, 8), weightKg: 60);
     final target = repo.targetFor('2026-01-15');
     final cake = repo.searchFoods('奶油蛋糕').first;
     // 用足量把热量顶穿预算
@@ -145,8 +170,7 @@ void main() {
     final repo = buildRepo();
     for (var i = 0; i < 14; i++) {
       repo.saveWeight(
-        localDate: '2026-01-${(i + 1).toString().padLeft(2, '0')}',
-        slot: WeightSlot.morning,
+        at: DateTime(2026, 1, i + 1, 8),
         weightKg: 70 - i * 0.1,
       );
     }
@@ -155,7 +179,7 @@ void main() {
 
   test('数据量统计与 JSON 导出可用', () {
     final repo = buildRepo();
-    repo.saveWeight(localDate: '2026-01-15', slot: WeightSlot.morning, weightKg: 60);
+    repo.saveWeight(at: DateTime(2026, 1, 15, 8), weightKg: 60);
     final counts = repo.tableCounts();
     expect(counts['weight_entry'], 1);
     expect(counts['food_item'], greaterThan(50));

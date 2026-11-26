@@ -4,6 +4,7 @@ import '../data/models.dart';
 import '../theme/tokens.dart';
 import 'common/pressable.dart';
 import 'common/surface_card.dart';
+import 'common/weight_entry.dart';
 import 'app_model.dart';
 import 'format.dart';
 import 'sheets.dart';
@@ -33,7 +34,6 @@ class TodayPage extends StatelessWidget {
         .clamp(0.0, 1.0)
         .toDouble();
     final over = facts.todayIntake > target.intakeBudget;
-    final otherToday = model.repo.weightOn(model.todayKey, WeightSlot.other);
 
     return RefreshIndicator(
       onRefresh: () async => model.reload(),
@@ -67,7 +67,7 @@ class TodayPage extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.md),
 
-          // ── 热量 ────────────────────────────────────────────────
+          // ── 热量：首屏第一张卡，今天还能吃多少 ──────────────────
           SurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,75 +142,8 @@ class TodayPage extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.md),
 
-          // ── 体重 ────────────────────────────────────────────────
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SectionHeader(
-                  title: '体重',
-                  trailing: TextButton(
-                    onPressed: onOpenTrend,
-                    child: const Text('趋势'),
-                  ),
-                ),
-                const SizedBox(height: AppSpace.sm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _WeightSlotTile(
-                        slot: WeightSlot.morning,
-                        entry: model.morningEntry,
-                        onTap: () => showWeightSheet(
-                          context,
-                          model,
-                          slot: WeightSlot.morning,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpace.sm),
-                    Expanded(
-                      child: _WeightSlotTile(
-                        slot: WeightSlot.evening,
-                        entry: model.eveningEntry,
-                        onTap: () => showWeightSheet(
-                          context,
-                          model,
-                          slot: WeightSlot.evening,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpace.sm),
-                if (otherToday != null) ...[
-                  _OtherWeightRow(
-                    entry: otherToday,
-                    onTap: () =>
-                        showWeightSheet(context, model, slot: WeightSlot.other),
-                  ),
-                  const SizedBox(height: AppSpace.sm),
-                ],
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () => showWeightSheet(
-                        context,
-                        model,
-                        slot: WeightSlot.other,
-                      ),
-                      child: const Text('任意时刻记一笔'),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '趋势 ${signed(model.trend.isEmpty ? 0 : model.trend.last.trendKg - (model.trend.first.trendKg), digits: 1)} kg',
-                      style: AppType.bodySmall,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          // ── 体重填写：第二张卡，填数字回车即记 ──────────────────
+          _WeightFillCard(model: model, onOpenTrend: onOpenTrend),
           const SizedBox(height: AppSpace.md),
 
           // ── 分析 ────────────────────────────────────────────────
@@ -264,80 +197,53 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _WeightSlotTile extends StatelessWidget {
-  const _WeightSlotTile({
-    required this.slot,
-    required this.entry,
-    required this.onTap,
-  });
+/// 首屏第二张卡的体重填写：时间 + 体重 两颗胶囊 + 保存，和「记体重」弹层是同一个控件。
+class _WeightFillCard extends StatelessWidget {
+  const _WeightFillCard({required this.model, required this.onOpenTrend});
 
-  final WeightSlot slot;
-  final WeightEntry? entry;
-  final VoidCallback onTap;
+  final AppModel model;
+  final VoidCallback onOpenTrend;
 
   @override
   Widget build(BuildContext context) {
-    final has = entry != null;
-    return Pressable(
-      onTap: onTap,
-      radius: AppRadius.mdAll,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpace.md,
-        vertical: AppSpace.sm,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: has ? AppColor.brandSoft : AppColor.surfaceMuted,
-          borderRadius: AppRadius.mdAll,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.md,
-          vertical: AppSpace.sm,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(slot.label, style: AppType.label),
-            const SizedBox(height: AppSpace.xxs),
-            Text(
-              has ? '${kgLabel(entry!.weightKg)} kg' : '记录',
-              style: has ? AppType.metric : AppType.title,
+    final last = model.entries.isEmpty ? null : model.entries.first;
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(
+            title: '体重',
+            caption: '点一下选时间和体重',
+            trailing: TextButton(
+              onPressed: onOpenTrend,
+              child: const Text('趋势'),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 今天已记的「任意时刻」那一条。同一时段覆盖式写入，所以最多一条。
-class _OtherWeightRow extends StatelessWidget {
-  const _OtherWeightRow({required this.entry, required this.onTap});
-
-  final WeightEntry entry;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      radius: AppRadius.mdAll,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColor.surfaceMuted,
-          borderRadius: AppRadius.mdAll,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.md,
-          vertical: AppSpace.sm,
-        ),
-        child: Row(
-          children: [
-            Text('任意 · ${clockLabel(entry.date)}', style: AppType.label),
-            const Spacer(),
-            Text('${kgLabel(entry.weightKg)} kg', style: AppType.metric),
-          ],
-        ),
+          ),
+          const SizedBox(height: AppSpace.xs),
+          WeightEntryForm(model: model),
+          // 两行摘要一直占位：记了第一条之后卡片不会突然长高，
+          // 上面的热量卡和按钮也就不会往下跳。
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            last == null
+                ? '还没有记录'
+                : '最近 ${kgLabel(last.weightKg)} kg · '
+                      '${relativeDay(last.date, model.now)} '
+                      '${clockLabel(last.date)}',
+            style: AppType.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: AppSpace.xxs),
+          Text(
+            model.trend.length > 1
+                ? '趋势 ${signed(model.trend.last.trendKg - model.trend.first.trendKg, digits: 2)} kg'
+                : '趋势：两条记录之后显示',
+            style: AppType.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

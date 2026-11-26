@@ -6,9 +6,9 @@ import 'package:health_app/data/repository.dart';
 import 'package:health_app/main.dart';
 import 'package:health_app/platform/app_intents.dart';
 import 'package:health_app/ui/app_model.dart';
+import 'package:health_app/ui/format.dart';
 
 const testProfile = Profile(
-  sex: 'female',
   birthYear: 1996,
   heightCm: 165,
   activityLevel: 'light',
@@ -36,11 +36,11 @@ Future<void> sendLink(WidgetTester tester, String uri) async {
 
 void main() {
   group('链接解析', () {
-    test('体重：带数值和时段', () {
-      final link = parseLink('smalljj://weight?slot=morning&kg=60.4')!;
+    test('体重：带数值和时刻', () {
+      final link = parseLink('smalljj://weight?kg=60.4&time=08:00')!;
       expect(link.type, 'weight');
-      expect(link['slot'], 'morning');
       expect(link['kg'], '60.4');
+      expect(link['time'], '08:00');
     });
 
     test('旧链接 record 仍然有效，归到体重', () {
@@ -76,15 +76,16 @@ void main() {
       await tester.pumpWidget(HealthApp(model: model));
       await tester.pumpAndSettle();
 
-      await sendLink(tester, 'smalljj://weight?slot=evening&kg=61.2');
+      await sendLink(tester, 'smalljj://weight?kg=61.2&time=08:00');
 
-      expect(model.eveningEntry, isNotNull);
-      expect(model.eveningEntry!.weightKg, 61.2);
+      final entry =
+          model.entries.firstWhere((e) => e.weightKg == 61.2);
+      expect(clockLabel(entry.date), '08:00');
       expect(find.textContaining('已记'), findsOneWidget);
 
       await tester.tap(find.text('撤销'));
       await tester.pumpAndSettle();
-      expect(model.eveningEntry, isNull);
+      expect(model.entries.any((e) => e.weightKg == 61.2), isFalse);
     });
 
     testWidgets('一句话饮食直接落库，不用弹表单', (tester) async {
@@ -143,6 +144,22 @@ void main() {
       expect(model.repo.tableCounts(), before);
     });
 
+    testWidgets('连续两条提示不会永久压在页面上', (tester) async {
+      final model = buildModel();
+      model.completeOnboarding(draft: testProfile, weightKg: 60);
+      await tester.pumpWidget(HealthApp(model: model));
+      await tester.pumpAndSettle();
+
+      await sendLink(tester, 'smalljj://weight?kg=62');
+      await sendLink(tester, 'smalljj://period?action=start');
+      expect(find.textContaining('已记'), findsOneWidget);
+
+      // 到点自己走掉，不能永久盖住底部的「保存」
+      await tester.pump(const Duration(seconds: 7));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('已记'), findsNothing);
+    });
+
     testWidgets('撤销链接在没有记录时给出提示而不是崩溃', (tester) async {
       final model = buildModel();
       model.completeOnboarding(draft: testProfile, weightKg: 60);
@@ -159,8 +176,9 @@ void main() {
       await tester.pumpWidget(HealthApp(model: model));
       await tester.pumpAndSettle();
 
-      await sendLink(tester, 'smalljj://weight?slot=other&kg=9');
-      expect(model.repo.weightOn(model.todayKey, WeightSlot.other), isNull);
+      await sendLink(tester, 'smalljj://weight?kg=9');
+      expect(model.entries.length, 1);
+      expect(model.entries.single.weightKg, 60);
       expect(find.textContaining('不在 25–300'), findsOneWidget);
     });
   });

@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../data/models.dart';
+import '../domain/weight_input.dart';
 import '../theme/tokens.dart';
 import 'app_model.dart';
+import 'common/measure_field.dart';
+import 'common/primary_button.dart';
 
-/// 首次启动：五件事就能开始用，其余留到「我的」里改。
+/// 第一次打开：只问算 BMR 必须的三项，十几秒填完就进主页。
+///
+/// 没有性别：这个应用只服务女性，BMR 固定女式。
+///
+/// 活动量、目标、目标体重都给了合理的起步值，之后在「我的」里随时改，
+/// 不在这里拦人——第一次用的人还没有耐心回答七个问题。
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({required this.model, super.key});
 
@@ -15,28 +23,31 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  String _sex = 'female';
-  String _activity = 'light';
-  String _goal = 'lose';
   final _year = TextEditingController(text: '1996');
   final _height = TextEditingController(text: '165');
-  final _weight = TextEditingController(text: '60');
-  final _goalWeight = TextEditingController();
+  final _weight = TextEditingController();
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _weight.addListener(() {
+      if (_error != null) setState(() => _error = null);
+    });
+  }
 
   @override
   void dispose() {
     _year.dispose();
     _height.dispose();
     _weight.dispose();
-    _goalWeight.dispose();
     super.dispose();
   }
 
   void _start() {
     final year = int.tryParse(_year.text.trim());
     final height = double.tryParse(_height.text.trim());
-    final weight = double.tryParse(_weight.text.trim());
+    final weight = parseWeightInput(_weight.text);
     if (year == null || year < 1900 || year > DateTime.now().year) {
       setState(() => _error = '出生年看起来不对');
       return;
@@ -45,23 +56,20 @@ class _OnboardingPageState extends State<OnboardingPage> {
       setState(() => _error = '身高请填 100–250 cm');
       return;
     }
-    if (weight == null || weight < 25 || weight > 300) {
-      setState(() => _error = '体重请填 25–300 kg');
+    final weightError = weightInputError(weight);
+    if (weightError != null) {
+      setState(() => _error = weightError);
       return;
     }
-    final goalWeight = double.tryParse(_goalWeight.text.trim());
     widget.model.completeOnboarding(
       draft: Profile(
-        sex: _sex,
         birthYear: year,
         heightCm: height,
-        activityLevel: _activity,
-        goalMode: _goal,
+        activityLevel: 'light',
+        goalMode: 'lose',
         goalRateKgWeek: 0.5,
-        goalWeightKg: (goalWeight ?? 0) >= 30 ? goalWeight : null,
-        periodTracking: _sex == 'female',
       ),
-      weightKg: weight,
+      weightKg: weight!,
     );
   }
 
@@ -76,101 +84,50 @@ class _OnboardingPageState extends State<OnboardingPage> {
             Text('SmallJJ 健康', style: AppType.display),
             const SizedBox(height: AppSpace.xs),
             Text(
-              '只做四件事：记体重、记饮食、算消耗、看趋势。\n数据全部在这台手机上。',
+              '填三项就能开始，数据全在这台手机上。\n其余资料在「我的」里随时改。',
               style: AppType.body,
             ),
-            const SizedBox(height: AppSpace.xl),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'female', label: Text('女')),
-                ButtonSegment(value: 'male', label: Text('男')),
-              ],
-              selected: {_sex},
-              onSelectionChanged: (v) => setState(() => _sex = v.first),
-            ),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.lg),
+            // 两个框都在固定行高里：一个带单位、一个不带，高度仍然一样。
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _year,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '出生年'),
+                  child: SizedBox(
+                    height: AppLayout.fieldHeight,
+                    child: TextField(
+                      controller: _year,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: '出生年'),
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpace.sm),
                 Expanded(
-                  child: TextField(
+                  child: MeasureField(
                     controller: _height,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '身高',
-                      suffixText: 'cm',
-                    ),
+                    label: '身高',
+                    unit: 'cm',
+                    hint: '165',
                   ),
                 ),
               ],
             ),
             const SizedBox(height: AppSpace.md),
-            TextField(
+            MeasureField(
               controller: _weight,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: '今天的体重',
-                suffixText: 'kg',
-              ),
+              autofocus: true,
+              label: '现在体重',
+              invalid: _error != null,
             ),
+            const SizedBox(height: AppSpace.xxs),
+            // 错误行常驻：出错时只有这一行变色，下面的「开始」不动。
+            FieldError(message: _error),
             const SizedBox(height: AppSpace.md),
-            DropdownButtonFormField<String>(
-              initialValue: _activity,
-              decoration: const InputDecoration(labelText: '日常活动量'),
-              items: const [
-                DropdownMenuItem(value: 'sedentary', child: Text('久坐（几乎不运动）')),
-                DropdownMenuItem(value: 'light', child: Text('轻度（每周 1–3 次）')),
-                DropdownMenuItem(value: 'moderate', child: Text('中度（每周 3–5 次）')),
-                DropdownMenuItem(value: 'active', child: Text('活跃（每周 6–7 次）')),
-              ],
-              onChanged: (v) => setState(() => _activity = v ?? _activity),
-            ),
-            const SizedBox(height: AppSpace.md),
-            DropdownButtonFormField<String>(
-              initialValue: _goal,
-              decoration: const InputDecoration(labelText: '目标'),
-              items: const [
-                DropdownMenuItem(value: 'lose', child: Text('减脂')),
-                DropdownMenuItem(value: 'maintain', child: Text('维持')),
-                DropdownMenuItem(value: 'gain', child: Text('增重')),
-              ],
-              onChanged: (v) => setState(() => _goal = v ?? _goal),
-            ),
-            const SizedBox(height: AppSpace.md),
-            TextField(
-              controller: _goalWeight,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: '目标体重（可选）',
-                suffixText: 'kg',
-              ),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: AppSpace.sm),
-              Text(
-                _error!,
-                style: AppType.bodySmall.copyWith(color: AppColor.heart),
-              ),
-            ],
-            const SizedBox(height: AppSpace.lg),
-            FilledButton(
-              onPressed: _start,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColor.brandStrong,
-                minimumSize: const Size(0, 52),
-              ),
-              child: const Text('开始'),
-            ),
+            PrimaryButton(label: '开始', onPressed: _start),
             const SizedBox(height: AppSpace.sm),
             Text(
-              '预算用 Mifflin-St Jeor × 活动系数起步，之后用你实际的体重变化校准。',
+              '活动量按「轻度」、目标按「减脂 0.5 kg/周」起步，'
+              '之后在「我的」里改，预算跟着重算。',
               style: AppType.micro,
             ),
           ],

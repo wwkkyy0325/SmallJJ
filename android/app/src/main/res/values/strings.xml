@@ -6,4 +6,8 @@
     <string name="shortcut_food">记饮食</string>
     <string name="shortcut_budget">今天还能吃多少</string>
     <string name="shortcut_period">记经期开始</string>
+    <string name="tile_weight">记体重</string>
+    <string name="tile_weight_morning">早上</string>
+    <string name="tile_weight_evening">晚上</string>
+    <string name="tile_weight_any">任意时段</string>
 </resources>
