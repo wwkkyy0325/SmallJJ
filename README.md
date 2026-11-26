@@ -1,6 +1,6 @@
 # SmallJJ Health
 
-自用的个人健康数据应用（Flutter）。记录体重、饮食、经期，算出每日消耗与热量预算，
+自用的个人健康数据应用（Flutter）。记录体重、饮食、经期，算出每日消耗，
 给能解释的建议。**所有数据在本机 SQLite 里，没有账号、没有埋点、Manifest 里没有任何
 `uses-permission`（连 INTERNET 都没申请）。**
 
@@ -10,8 +10,9 @@
 |---|---|
 | 体重 | 首屏第二张卡（热量卡下面）：**两颗胶囊平分一行、都点开滚轮选，没有输入框也不弹键盘**——左边是时间（默认现在，24 小时制；弹层里另一行日期用它那半边，点日期半边开三列年月日），右边是体重（整数 kg 一列、小数两位一列，25.00–300.00，滚到哪格就是哪格，可以一键跳回「上次」），下面一排保存；同一天记几次都留着，日值取均值 |
 | 体重趋势 | EWMA α=0.15，缺测按天数放大 α；图上是原始点 + 趋势线 |
-| 每日消耗 TDEE | Mifflin-St Jeor × 活动系数；积累 10 天以上数据后按能量平衡反解，7:3 混合、±150 kcal/天 钳制 |
-| 热量预算 | `TDEE − 目标缺口`，缺口 ≤25% TDEE、摄入下限 1200/1500 kcal、BMI<18.5 关闭缺口；每日预算落库，改资料不改写历史 |
+| 每日消耗 TDEE | Mifflin-St Jeor × 活动系数；积累 10 天以上数据后按能量平衡反解（每日体重做**最小二乘斜率**，不用首尾两点的差），7:3 混合、±150 kcal/天 钳制 |
+| 今日摄入 vs 估算消耗 | 一条口径：`估算消耗 − 已摄入`。没有预算、没有目标、不评判好坏：多吃了只说「比估算消耗多 X」，不翻红不报警 |
+| 今日热量卡 | 首屏第一张卡：标题「今日摄入」，右上角「估算消耗 2050」；大数字是已摄入，整条进度条 = 已摄入 / 估算消耗，下面一行只说方向（比估算消耗少 / 多 X kcal）。**没有红绿、没有「还剩多少」** |
 | 饮食 | 内置 84 条食物（每 100 g 参考值）+ 自建条目；每餐条目落库时快照热量 |
 | 一句话记饮食 | 「两个鸡蛋一杯牛奶」→ 只归一数量与单位，热量永远取自食物库，不猜 |
 | 经期 | 记录开始日，最近 ≤6 个周期取中位数 + 标准差 → 区间 + 可信度 |
@@ -20,10 +21,12 @@
 
 ## 上手
 
-第一次打开只填三项：出生年、身高、现在体重。活动量按「轻度」、目标按
-「减脂 0.5 kg/周」起步。以后要改的一切——出生年、身高、活动量、目标、
-每周变化、目标体重、经期开关、分析文案——都在「我的 → 身体资料」里，改完当天
-预算立刻重算，历史快照不动。
+第一次打开只填三项：出生年、身高、现在体重。活动量按「轻度」起步。
+以后要改的一切——出生年、身高、活动量、经期开关、分析文案——都在
+「我的 → 身体资料」里，改完当天的估算消耗重算，历史快照不动。
+
+**没有目标这一栏**：不问减脂/增重，不问目标体重，不问每周速率。这个应用只做
+测量和统计，不给计划值去评判今天。
 
 这个应用只服务女性：没有性别这一项，BMR 固定用 Mifflin-St Jeor 的女式
 （`10W + 6.25H − 5A − 161`），摄入下限 1200 kcal，经期默认开启。
@@ -57,7 +60,7 @@ App 把 `smalljj://` 注册成自己的 scheme。链接里**带了数值就直�
 # 1) adb / 任何能打开链接的地方（已实测，逐条落库）
 adb shell am start -a android.intent.action.VIEW -d "smalljj://weight?kg=59.82&time=08:00"
 
-# 2) 长按桌面图标 → 快捷方式（记体重 / 记饮食 / 今天还能吃多少 / 记经期开始）
+# 2) 长按桌面图标 → 快捷方式（记早上体重 / 记饮食 / 今天吃了多少 / 记经期开始）
 
 # 3) 下拉状态栏 → 磁贴「记体重」（时间取点下去的那一刻，进 App 还能改）
 
@@ -72,13 +75,13 @@ adb shell am start -a android.intent.action.VIEW -d "smalljj://weight?kg=59.82&t
 ```
 lib/
   data/      db.dart（建表/迁移）、models.dart、repository.dart、food_seed.dart
-  domain/    energy.dart（TDEE/预算）、weight_trend.dart、food_parse.dart、
+  domain/    energy.dart（BMR / TDEE / 收支）、weight_trend.dart、food_parse.dart、
              cycle.dart、analysis.dart（规则引擎）
   platform/  app_intents.dart（scheme 解析、系统 TTS）
   ui/        today / weight / food / profile / onboarding / sheets / voice
              intent_router.dart（链接 → 对数据做的事）
              theme/（设计 token）
-test/        105 条单测与 widget 测试（含 `typography_test.dart` 看守字号令牌）
+test/        120 条单测与 widget 测试（含 `typography_test.dart` 看守字号令牌）
 docs/        功能调研、数据模型与算法、本轮实现与取舍、手机助手接入、真机验收
 ```
 
@@ -87,7 +90,7 @@ docs/        功能调研、数据模型与算法、本轮实现与取舍、手�
 ```bash
 flutter pub get
 flutter analyze          # No issues found!
-flutter test             # 105 passed
+flutter test             # 120 passed
 
 # 装到手机（release 包，冷启动比 debug 快约 9 倍）
 export JAVA_HOME="$HOME/dev/java/current"
@@ -107,7 +110,7 @@ Android 侧入口在 `android/app/src/main/kotlin/com/smalljj/health_app/MainAct
 - 小布只能「打开应用」，带不了参数；ColorOS 没有公开的第三方意图调用接口，
   「一句话记体重」要 OPPO 开放平台准入。替代入口与证据见 `docs/手机助手接入.md`。
 - 食物库数值是公开参考值取整，个体差异大，用户可自建条目覆盖。
-- 摄入下限 1200/1500 kcal 是保守阈值，不是指南原文，界面上标明是钳制值。
+- 1200 kcal 是摄入下限的保守阈值，不是指南原文；它只用来发一条「今天吃得太少」的提醒，不是预算上限，也不参与任何计算。
 - 经期「可信度」是启发式（样本量 + 标准差），不是统计置信区间。
 - 未接入 Health Connect / 系统步数；TDEE 用活动系数 + 体重变化自适应校准。
 - 字体不打包文件，统一用系统字族 `sans-serif` + 中文回退链；字号收敛成文字 8 级、
