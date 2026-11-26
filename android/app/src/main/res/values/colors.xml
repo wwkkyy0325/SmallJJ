@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动窗口的底色，和首帧同色（见 lib/theme/tokens.dart 的 AppColor.canvas）。
+
+  这里刻意只写一个颜色、不画图标、不写文字：冷启动到首帧之间本来就是一段空窗，
+  底色一致就看不见「白闪 / 黑闪」，用户看到的是一块从头到尾没变过的画布。
+  改这个值的时候要和 AppColor.canvas 一起改。
+-->
+<resources>
+    <color name="canvas">#F2F5F4</color>
+</resources>

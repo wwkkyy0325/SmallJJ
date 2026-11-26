@@ -13,6 +13,7 @@
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- Flutter 画的界面之下那层窗口底色：和画布同色，旋转/收起键盘时不露白 -->
+        <item name="android:windowBackground">@color/canvas</item>
     </style>
 </resources>
