@@ -51,7 +51,7 @@ App 把 `smalljj://` 注册成自己的 scheme。链接里**带了数值就直�
 
 类型与参数都带中文别名（`体重` / `饮食` / `经期` / `问` / `撤销` / `首页`）。
 
-四条触发路径（都在 emulator-5558 上点过）：
+四条触发路径（都用 `adb shell am start` / 桌面长按在手机上点过）：
 
 ```bash
 # 1) adb / 任何能打开链接的地方（已实测，逐条落库）
@@ -78,8 +78,8 @@ lib/
   ui/        today / weight / food / profile / onboarding / sheets / voice
              intent_router.dart（链接 → 对数据做的事）
              theme/（设计 token）
-test/        66 条单测与 widget 测试
-docs/        功能调研、数据模型与算法、本轮实现与取舍、手机助手接入、人工验收清单
+test/        105 条单测与 widget 测试（含 `typography_test.dart` 看守字号令牌）
+docs/        功能调研、数据模型与算法、本轮实现与取舍、手机助手接入、真机验收
 ```
 
 ## 构建与测试
@@ -87,9 +87,16 @@ docs/        功能调研、数据模型与算法、本轮实现与取舍、手�
 ```bash
 flutter pub get
 flutter analyze          # No issues found!
-flutter test             # All tests passed! (+66)
-flutter build apk --debug
+flutter test             # 105 passed
+
+# 装到手机（release 包，冷启动比 debug 快约 9 倍）
+export JAVA_HOME="$HOME/dev/java/current"
+flutter build apk --release --target-platform android-arm64
+adb install -r build/app/outputs/flutter-apk/app-release.apk
 ```
+
+**验收只在真机做，不用模拟器**——步骤、看什么、怎么取证见
+[`docs/真机验收.md`](docs/真机验收.md)。
 
 Android 侧入口在 `android/app/src/main/kotlin/com/smalljj/health_app/MainActivity.kt`：
 `singleTask` 接收 deep link，`onNewIntent` 转给 Flutter，并提供 `smalljj/intent`、
@@ -103,4 +110,5 @@ Android 侧入口在 `android/app/src/main/kotlin/com/smalljj/health_app/MainAct
 - 摄入下限 1200/1500 kcal 是保守阈值，不是指南原文，界面上标明是钳制值。
 - 经期「可信度」是启发式（样本量 + 标准差），不是统计置信区间。
 - 未接入 Health Connect / 系统步数；TDEE 用活动系数 + 体重变化自适应校准。
-- 内置字体 Noto Sans SC 采用 OFL。
+- 字体不打包文件，统一用系统字族 `sans-serif` + 中文回退链；字号收敛成文字 8 级、
+  数字 4 级，取值只有 `lib/theme/tokens.dart` 一处。

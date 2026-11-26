@@ -59,16 +59,28 @@ abstract final class AppColor {
   static const shadow = Color(0x140E1A16);
 }
 
-/// 字号阶梯：每一级都带行高与字距，标题是具名的一级而不是“字号+临时字距”。
+/// 字号阶梯 —— 全应用只有这一套字体、只有这几级。
+///
+/// 字体文件不打包，直接用系统字族（Android 上是 Roboto 加系统中文，
+/// iOS 上是 PingFang）：数字和汉字都出自同一套系统字形，一行里不会出现
+/// 两种字。这里以前写的是 `NotoSansSC`，可 pubspec 里并没有打包这份字体，
+/// 那个名字匹配不到任何字体——写一个加载不到的字族不会让排版更统一，
+/// 只会让「现在到底用的什么字体」变成猜的。
+///
+/// 级数是刻意少的：文字 8 级、数字 4 级。数字那 4 级就是全部——同一个数
+/// 不管出现在胶囊上、浮层滚轮里还是输入框里，都是 [metric] 这一档，
+/// 所以点开浮层的时候字不会突然变一号。
 abstract final class AppType {
-  /// 字体回退链：打包的 Noto Sans SC 优先，其次各平台自带中文字体。
-  static const family = 'NotoSansSC';
+  /// 系统 UI 字族。Android 上 `sans-serif` 就是 Roboto，中文走系统回退。
+  static const family = 'sans-serif';
+
+  /// 其他平台的中文字族：没有 `sans-serif` 这个名字时按序取用。
   static const fallback = <String>[
     'PingFang SC',
     'Hiragino Sans GB',
+    'Noto Sans CJK SC',
     'Noto Sans SC',
     'Microsoft YaHei',
-    'Noto Sans CJK SC',
   ];
 
   static const _base = TextStyle(
@@ -76,17 +88,22 @@ abstract final class AppType {
     fontFamilyFallback: fallback,
   );
 
-  /// 大数字 / 首屏主标题 34px
+  /// 数值统一用表格数字：滚一格、改一个数，字符宽度不变，不会左右抖。
+  static const _figures = [FontFeature.tabularFigures()];
+
+  // ── 文字：8 级 ──────────────────────────────────────────────────
+
+  /// 页面主标题 34px
   static final display = _base.copyWith(
     fontSize: 34,
     height: 1.12,
     fontWeight: FontWeight.w700,
     letterSpacing: -0.8,
     color: AppColor.ink,
-    fontFeatures: const [FontFeature.tabularFigures()],
+    fontFeatures: _figures,
   );
 
-  /// 页面标题 24px
+  /// 页面标题 / 弹层标题 24px
   static final headline = _base.copyWith(
     fontSize: 24,
     height: 1.25,
@@ -95,7 +112,7 @@ abstract final class AppType {
     color: AppColor.ink,
   );
 
-  /// 区块标题 20px
+  /// 区块标题 18px
   static final section = _base.copyWith(
     fontSize: 18,
     height: 1.35,
@@ -122,7 +139,8 @@ abstract final class AppType {
     color: AppColor.ink,
   );
 
-  /// 次级说明 13px
+  /// 次级说明 13px。也用在数值后面当单位（`kg` / `kcal` / 「年」）：
+  /// 单位不单独造一级，它就是一行里的小字。
   static final bodySmall = _base.copyWith(
     fontSize: 13,
     height: 1.45,
@@ -131,53 +149,13 @@ abstract final class AppType {
     color: AppColor.inkMuted,
   );
 
-  /// 数值：卡片里的测量值 22px，等宽数字
-  static final metric = _base.copyWith(
-    fontSize: 22,
-    height: 1.2,
-    fontWeight: FontWeight.w700,
-    letterSpacing: -0.3,
-    color: AppColor.ink,
-    fontFeatures: const [FontFeature.tabularFigures()],
-  );
-
-  /// 环内主数字 30px
-  static final ringNumber = _base.copyWith(
-    fontSize: 30,
-    height: 1.15,
-    fontWeight: FontWeight.w700,
-    letterSpacing: -0.6,
-    color: AppColor.ink,
-    fontFeatures: const [FontFeature.tabularFigures()],
-  );
-
-  /// 行内数值 14px
-  static final stat = _base.copyWith(
-    fontSize: 14,
-    height: 1.4,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0,
-    color: AppColor.ink,
-    fontFeatures: const [FontFeature.tabularFigures()],
-  );
-
-  /// 迷你标签 / 单位 11px
+  /// 迷你标签 11px：栏目名、卡片小标题
   static final label = _base.copyWith(
     fontSize: 11,
     height: 1.4,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.4,
     color: AppColor.inkMuted,
-  );
-
-  /// 柱状图刻度 10px
-  static final micro = _base.copyWith(
-    fontSize: 10,
-    height: 1.4,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 0.2,
-    color: AppColor.inkMuted,
-    fontFeatures: const [FontFeature.tabularFigures()],
   );
 
   /// 按钮文字 15px
@@ -187,6 +165,50 @@ abstract final class AppType {
     fontWeight: FontWeight.w600,
     letterSpacing: 0.1,
     color: AppColor.onBrand,
+  );
+
+  // ── 数字：4 级 ──────────────────────────────────────────────────
+
+  /// 首屏热量数字 30px
+  static final ringNumber = _base.copyWith(
+    fontSize: 30,
+    height: 1.15,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.6,
+    color: AppColor.ink,
+    fontFeatures: _figures,
+  );
+
+  /// 数值 20px —— 唯一一档「可选的数」：胶囊上的时间与体重、三只浮层的
+  /// 滚轮、体重输入框、统计数字。这几处必须是同一档，否则同一个 62.42
+  /// 在胶囊上是一个样、点开浮层是另一个样。
+  static final metric = _base.copyWith(
+    fontSize: 20,
+    height: 1.2,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0,
+    color: AppColor.ink,
+    fontFeatures: _figures,
+  );
+
+  /// 行内数值 14px：三栏小统计
+  static final stat = _base.copyWith(
+    fontSize: 14,
+    height: 1.4,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0,
+    color: AppColor.ink,
+    fontFeatures: _figures,
+  );
+
+  /// 图表刻度 9px：再大就和下面的日期标签挤在一起
+  static final axis = _base.copyWith(
+    fontSize: 9,
+    height: 1.3,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0,
+    color: AppColor.inkMuted,
+    fontFeatures: _figures,
   );
 }
 

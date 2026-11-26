@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/db.dart';
 import '../theme/tokens.dart';
 import 'common/measure_field.dart';
 import 'common/primary_button.dart';
@@ -186,8 +187,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 contentPadding: EdgeInsets.zero,
                 value: _aiNarration,
                 onChanged: (v) => setState(() => _aiNarration = v),
-                title: const Text('分析文案',
-                    style: TextStyle(fontFamily: 'NotoSansSC')),
+                title: const Text('分析文案'),
                 subtitle: const Text('规则引擎生成的提示，关掉只留数字'),
               ),
               const SizedBox(height: AppSpace.sm),
@@ -326,8 +326,9 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               const SizedBox(height: AppSpace.sm),
               Text(
-                '算法版本 v1 · 数据库 schema 1 · 身高 ${heightLabel(profile.heightCm)} cm',
-                style: AppType.micro,
+                '算法版本 v1 · 数据库 schema $kSchemaVersion · '
+                '身高 ${heightLabel(profile.heightCm)} cm',
+                style: AppType.bodySmall,
               ),
             ],
           ),

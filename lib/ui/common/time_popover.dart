@@ -126,7 +126,6 @@ class _TimePopoverBodyState extends State<_TimePopoverBody> {
                             count: 24,
                             controller: _hourController,
                             label: _twoDigits,
-                            style: _digit,
                             onChanged: (index) => _select(hour: index),
                           ),
                         ),
@@ -139,7 +138,6 @@ class _TimePopoverBodyState extends State<_TimePopoverBody> {
                             count: 60,
                             controller: _minuteController,
                             label: _twoDigits,
-                            style: _digit,
                             onChanged: (index) => _select(minute: index),
                           ),
                         ),
@@ -160,13 +158,9 @@ class _TimePopoverBodyState extends State<_TimePopoverBody> {
     );
   }
 
-  static final _colon = AppType.metric.copyWith(
-    fontSize: 20,
-    color: AppColor.inkMuted,
-  );
-
-  /// 两列都用 20px：22px 在这个小面板里太抢眼，读起来像标题。
-  static final _digit = AppType.metric.copyWith(fontSize: 20);
+  /// 两列都是 [AppType.metric]：和胶囊上的 `16:23` 同一档字号，
+  /// 点开浮层时数字不会跳一号。冒号跟着同一档，只是压灰。
+  static final _colon = AppType.metric.copyWith(color: AppColor.inkMuted);
 
   static String _twoDigits(int index) => index.toString().padLeft(2, '0');
 }

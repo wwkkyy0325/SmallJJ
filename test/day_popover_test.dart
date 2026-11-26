@@ -41,9 +41,11 @@ void main() {
   testWidgets('三列都在，初始停在今天', (tester) async {
     await open(tester);
     expect(find.byType(CupertinoPicker), findsNWidgets(3));
-    expect(find.text('2026年'), findsOneWidget);
-    expect(find.text('1月'), findsOneWidget);
-    expect(find.text('15日'), findsOneWidget);
+    // 数字和「年 / 月 / 日」是两段字（单位小一档），所以这里分开找。
+    expect(find.text('2026'), findsOneWidget);
+    expect(find.text('年'), findsWidgets);
+    expect(find.text('15'), findsOneWidget);
+    expect(find.text('日'), findsWidgets);
   });
 
   testWidgets('手指向上推（未来）夹住不动，不回调', (tester) async {
@@ -51,7 +53,7 @@ void main() {
     await tester.drag(find.byType(CupertinoPicker).last, const Offset(0, -200));
     await tester.pumpAndSettle();
     expect(picked, isEmpty);
-    expect(find.text('15日'), findsOneWidget);
+    expect(find.text('15'), findsOneWidget);
   });
 
   testWidgets('手指向下拖能往回改日期', (tester) async {
@@ -69,8 +71,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('今天'));
     await tester.pumpAndSettle();
-    expect(find.text('15日'), findsOneWidget);
-    expect(find.text('1月'), findsOneWidget);
+    expect(find.text('15'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
     expect(picked.last, DateTime(2026, 1, 15));
   });
 }

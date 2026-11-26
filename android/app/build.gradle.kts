@@ -15,6 +15,20 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // 签名钥匙钉在项目里，不依赖 ANDROID_SDK_HOME / ANDROID_USER_HOME 指向哪儿。
+    // 之前就是因为建包时那套环境变量指到了 ~/dev/android-avd，Gradle 在那里生成了
+    // 另一把 debug 钥匙，debug/profile 包和 release 包签名不同，手机上一装就
+    // INSTALL_FAILED_UPDATE_INCOMPATIBLE，只能卸载（数据一起没）。
+    // 这是自用包、不上架，密码就写在这里；换钥匙必须卸载重装。
+    signingConfigs {
+        create("app") {
+            storeFile = file("signing/smalljj.jks")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.smalljj.health_app"
@@ -27,10 +41,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 与 release 同一把钥匙：手机上装哪个包都能 -r 覆盖，不用卸载。
+            signingConfig = signingConfigs.getByName("app")
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // TODO: 真要上架时换成自己的正式 keystore。
+            signingConfig = signingConfigs.getByName("app")
         }
     }
 }

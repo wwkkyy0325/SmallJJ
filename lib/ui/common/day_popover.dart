@@ -157,8 +157,8 @@ class _DayPopoverBodyState extends State<_DayPopoverBody> {
                           child: WheelPicker(
                             count: widget.now.year - _minYear + 1,
                             controller: _yearController,
-                            style: _dayType,
-                            label: (index) => '${_minYear + index}年',
+                            label: (index) => '${_minYear + index}',
+                            suffix: (_) => '年',
                             onChanged: (index) {
                               if (_silent) return;
                               _settle(year: _minYear + index);
@@ -170,8 +170,8 @@ class _DayPopoverBodyState extends State<_DayPopoverBody> {
                           child: WheelPicker(
                             count: _monthCount,
                             controller: _monthController,
-                            style: _dayType,
-                            label: (index) => '${index + 1}月',
+                            label: (index) => '${index + 1}',
+                            suffix: (_) => '月',
                             onChanged: (index) {
                               if (_silent) return;
                               _settle(month: index + 1);
@@ -183,8 +183,8 @@ class _DayPopoverBodyState extends State<_DayPopoverBody> {
                           child: WheelPicker(
                             count: _dayCount(_year, _month),
                             controller: _dayController,
-                            style: _dayType,
-                            label: (index) => '${index + 1}日',
+                            label: (index) => '${index + 1}',
+                            suffix: (_) => '日',
                             onChanged: (index) {
                               if (_silent) return;
                               _settle(day: index + 1);
@@ -207,7 +207,4 @@ class _DayPopoverBodyState extends State<_DayPopoverBody> {
       ),
     );
   }
-
-  /// 三列都带「年 / 月 / 日」后缀，19px 刚好让「2026年」不挤，也不抢时间浮层的字号。
-  static final _dayType = AppType.metric.copyWith(fontSize: 19);
 }

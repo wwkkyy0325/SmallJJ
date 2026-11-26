@@ -50,7 +50,7 @@ class PickChip extends StatelessWidget {
               icon: icon,
               label: label,
               unit: unit,
-              valueStyle: _valueType,
+              valueStyle: AppType.metric,
               trailingArrow: true,
             ),
           ),
@@ -58,8 +58,6 @@ class PickChip extends StatelessWidget {
       ),
     );
   }
-
-  static final _valueType = AppType.metric.copyWith(fontSize: 18);
 }
 
 /// 「什么时候」这颗胶囊：左半边日期、右半边时间，点哪半边就改哪半边。
@@ -106,13 +104,19 @@ class WhenChip extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_hasDay) ...[
-              Flexible(
+              // 日期半边按内容取宽（最宽也就是「12/28」），剩下的宽度全给时间
+              // 半边——20sp 的数字比原来大一档，两边各分一半就会把「16:42」
+              // 挤成「16:…」。IntrinsicWidth：Row 给非弹性子项的宽度是无限的，
+              // 里面那个 Flex 会直接报 unbounded 断言，得先把它收成内容宽度。
+              IntrinsicWidth(
                 child: Builder(
                   builder: (zone) => InkWell(
                     onTap: () => onPickDay!(zone),
                     child: _ChipFace(
                       icon: Icons.event_rounded,
                       label: dayLabel!,
+                      valueStyle: AppType.metric,
+                      compact: true,
                     ),
                   ),
                 ),
@@ -125,13 +129,17 @@ class WhenChip extends StatelessWidget {
                 color: AppColor.line,
               ),
             ],
-            Flexible(
+            Expanded(
               child: Builder(
                 builder: (zone) => InkWell(
                   onTap: () => onPickTime(zone),
                   child: _ChipFace(
                     label: timeLabel,
-                    trailingArrow: true,
+                    valueStyle: AppType.metric,
+                    // 拆成两个半边时不再画展开箭头：一条缝已经把「这是两段」
+                    // 说清楚了，箭头只会再吃掉 20dp，把时间挤掉。
+                    trailingArrow: !_hasDay,
+                    compact: _hasDay,
                   ),
                 ),
               ),
@@ -149,20 +157,31 @@ class _ChipFace extends StatelessWidget {
     required this.label,
     this.icon,
     this.unit,
-    this.valueStyle,
+    required this.valueStyle,
     this.trailingArrow = false,
+    this.compact = false,
   });
 
   final String label;
   final IconData? icon;
   final String? unit;
-  final TextStyle? valueStyle;
+
+  /// 值用哪一档字：三处都传 [AppType.metric]，所以「时间」和「体重」两颗
+  /// 胶囊上的字必须一样大、一样粗——这两颗胶囊并排在一起，差一档就看得出来。
+  final TextStyle valueStyle;
+
   final bool trailingArrow;
+
+  /// 挤在一颗胶囊里的两段（日期 + 时间）用紧凑内边距：两段各留 8dp 的话，
+  /// 20sp 的「16:42」就会被省略号截掉。
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? AppSpace.xxs : AppSpace.xs,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -175,9 +194,7 @@ class _ChipFace extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: (valueStyle ?? AppType.bodySmall).copyWith(
-                color: AppColor.ink,
-              ),
+              style: valueStyle.copyWith(color: AppColor.ink),
             ),
           ),
           if (unit != null) ...[

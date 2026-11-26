@@ -147,7 +147,7 @@ class WeightPage extends StatelessWidget {
             child: Text(
               '预算按 ${kcalLabel(target.tdee)} kcal 的日常消耗计算，'
               '这个数字会用你的体重和摄入逐步校准。',
-              style: AppType.micro,
+              style: AppType.bodySmall,
             ),
           ),
       ],
@@ -176,7 +176,7 @@ class _Summary extends StatelessWidget {
             children: [
               Text(value, style: AppType.metric),
               const SizedBox(width: 2),
-              Text(unit, style: AppType.micro),
+              Text(unit, style: AppType.bodySmall),
             ],
           ),
         ],
@@ -201,7 +201,7 @@ class _LegendDot extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: AppSpace.xxs),
-        Text(label, style: AppType.micro),
+        Text(label, style: AppType.bodySmall),
       ],
     );
   }
@@ -252,7 +252,7 @@ class _WeightChartPainter extends CustomPainter {
       final label = TextPainter(
         text: TextSpan(
           text: value.toStringAsFixed(2),
-          style: AppType.micro.copyWith(fontSize: 9),
+          style: AppType.axis,
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -316,7 +316,7 @@ class _WeightChartPainter extends CustomPainter {
       final painter = TextPainter(
         text: TextSpan(
           text: monthDayLabel(entry.$1),
-          style: AppType.micro.copyWith(fontSize: 9),
+          style: AppType.axis,
         ),
         textDirection: TextDirection.ltr,
       )..layout();

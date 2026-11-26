@@ -115,7 +115,7 @@ class FoodPage extends StatelessWidget {
         Text(
           '热量按「食物库每 100 g × 克数」计算。库里的数值是常见参考值，'
           '不准就在添加页新建一条自己的。',
-          style: AppType.micro,
+          style: AppType.bodySmall,
         ),
       ],
     );

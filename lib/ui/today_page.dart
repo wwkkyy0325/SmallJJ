@@ -167,7 +167,7 @@ class TodayPage extends StatelessWidget {
           const SizedBox(height: AppSpace.md),
           Text(
             '数据全部存在本机，卸载即消失。',
-            style: AppType.micro,
+            style: AppType.bodySmall,
             textAlign: TextAlign.center,
           ),
         ],

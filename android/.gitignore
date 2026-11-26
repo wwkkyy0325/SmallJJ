@@ -12,3 +12,7 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# 例外：本项目把自己的签名钥匙入库。自用、不上架；入库才能保证换机器 / 换 clone
+# 打出来的包与手机上装的同一把钥匙，否则一装就 INSTALL_FAILED_UPDATE_INCOMPATIBLE。
+!/app/signing/smalljj.jks

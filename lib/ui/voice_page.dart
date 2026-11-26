@@ -157,7 +157,7 @@ class VoicePage extends StatelessWidget {
                             color: AppColor.brandSoft,
                             borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
-                          child: Text('直接落库', style: AppType.micro),
+                          child: Text('直接落库', style: AppType.label),
                         ),
                     ],
                   ),

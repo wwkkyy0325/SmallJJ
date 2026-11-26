@@ -153,7 +153,6 @@ class _KgPopoverBodyState extends State<_KgPopoverBody> {
                             count: _maxWhole - _minWhole + 1,
                             controller: _wholeController,
                             label: (index) => '${index + _minWhole}',
-                            style: _digit,
                             onChanged: (index) =>
                                 _select(whole: index + _minWhole),
                           ),
@@ -168,7 +167,6 @@ class _KgPopoverBodyState extends State<_KgPopoverBody> {
                             count: _centsCount(_whole),
                             controller: _centsController,
                             label: (index) => index.toString().padLeft(2, '0'),
-                            style: _digit,
                             onChanged: (index) => _select(cents: index),
                           ),
                         ),
@@ -189,11 +187,6 @@ class _KgPopoverBodyState extends State<_KgPopoverBody> {
     );
   }
 
-  static final _dot = AppType.metric.copyWith(
-    fontSize: 20,
-    color: AppColor.inkMuted,
-  );
-
-  /// 和时间浮层同一档字号：22px 在这个小面板里太抢眼，读起来像标题。
-  static final _digit = AppType.metric.copyWith(fontSize: 20);
+  /// 小数点跟着数字同一档字号，只是压灰：它是这个数的一部分，不是装饰。
+  static final _dot = AppType.metric.copyWith(color: AppColor.inkMuted);
 }

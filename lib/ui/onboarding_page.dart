@@ -128,7 +128,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             Text(
               '活动量按「轻度」、目标按「减脂 0.5 kg/周」起步，'
               '之后在「我的」里改，预算跟着重算。',
-              style: AppType.micro,
+              style: AppType.bodySmall,
             ),
           ],
         ),

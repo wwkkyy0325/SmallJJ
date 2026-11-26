@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:health_app/data/db.dart';
 import 'package:health_app/data/models.dart';
@@ -109,6 +110,46 @@ void main() {
     expect(tester.getRect(find.byType(WhenChip)), when);
     expect(tester.getRect(find.byType(PrimaryButton)), save);
     expect(tester.getSize(form).height, WeightEntryForm.stackedHeight);
+  });
+
+  testWidgets('日期 + 时间挤进一颗胶囊时，时间半边不被省略号吃掉', (tester) async {
+    // 测试字体是方块字（每个字符宽 = 字号），比真机的中文字体宽得多，所以这里
+    // 用的宽度是「够宽」的：这条守的不是像素，而是分配规则——日期半边按内容
+    // 取宽，时间半边吃掉剩下全部。写成两半平分的话，20sp 的「16:42」在两段
+    // 都放下的宽度下也会被截成「16:…」（真机上就是这么暴露的）。
+    Future<void> check(String day, double width) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: width,
+                child: WhenChip(
+                  dayLabel: day,
+                  onPickDay: (_) {},
+                  timeLabel: '16:42',
+                  onPickTime: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester.renderObject<RenderParagraph>(find.text('16:42')).didExceedMaxLines,
+        isFalse,
+        reason: '时间被截断了（day=$day）',
+      );
+      expect(
+        tester.renderObject<RenderParagraph>(find.text(day)).didExceedMaxLines,
+        isFalse,
+        reason: '日期被截断了（day=$day）',
+      );
+    }
+
+    await check('今天', 200);
+    await check('12/28', 260);
   });
 
   testWidgets('时间标签从「现在 15:00」变成「16:00」，两颗胶囊、按钮都不动', (tester) async {
