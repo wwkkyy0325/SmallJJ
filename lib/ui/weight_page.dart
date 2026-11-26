@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../domain/weight_trend.dart';
 import '../theme/tokens.dart';
-import 'common/day_popover.dart';
 import 'common/surface_card.dart';
 import 'app_model.dart';
 import 'format.dart';
@@ -14,30 +13,6 @@ class WeightPage extends StatelessWidget {
   const WeightPage({required this.model, super.key});
 
   final AppModel model;
-
-  /// 补记：先在按钮下方选日期（和时间 chip 用同一个浮层），再打开记体重弹层。
-  Future<void> _pickDate(BuildContext anchor) async {
-    DateTime? picked;
-    await showDayPopover(
-      anchor,
-      anchor: anchor,
-      initial: model.now,
-      now: model.now,
-      yearsBack: 1,
-      onChanged: (value) => picked = value,
-    );
-    if (picked == null || !anchor.mounted) return;
-    await showWeightSheet(
-      anchor,
-      model,
-      at: DateTime(
-        picked!.year,
-        picked!.month,
-        picked!.day,
-        model.now.hour,
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -130,19 +105,7 @@ class WeightPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpace.md),
-        Row(
-          children: [
-            Text('记录', style: AppType.section),
-            const Spacer(),
-            Builder(
-              builder: (button) => TextButton.icon(
-                onPressed: () => _pickDate(button),
-                icon: const Icon(Icons.event_rounded, size: AppIcon.sm),
-                label: const Text('补记某天'),
-              ),
-            ),
-          ],
-        ),
+        Text('记录', style: AppType.section),
         const SizedBox(height: AppSpace.xs),
         if (model.entries.isEmpty)
           Padding(
