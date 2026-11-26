@@ -216,6 +216,10 @@ class _ChipFace extends StatelessWidget {
 ///
 /// 体重胶囊初始停在最近一次记过的值上：滚轮总得有个起点，而从昨天的数字
 /// 挪 0.2 kg 比从 60.00 挪到 55.42 少滚很多格。
+///
+/// 「最近一次」是活的：首屏那张卡常驻在 IndexedStack 里、State 不会销毁，
+/// 所以在体重页、语音入口或撤销条里改了数据之后，这颗胶囊跟着变（见
+/// [_WeightEntryFormState._onModelChanged]）。
 class WeightEntryForm extends StatefulWidget {
   const WeightEntryForm({
     required this.model,
@@ -257,6 +261,12 @@ class _WeightEntryFormState extends State<WeightEntryForm> {
   /// 当前选中的体重。起点：改这条 → 原值；新记 → 最近一次记过的值。
   late double _kg = widget.entry?.weightKg ?? _latestKg();
 
+  /// 这次是用户亲手滚出来的数吗。
+  ///
+  /// 没滚过 = 胶囊代表「上次的值」，外面记了新体重它就跟着变；
+  /// 滚过 = 尊重这次的选择，不能把滚了一半的数冲掉。
+  bool _picked = false;
+
   double _latestKg() {
     final model = widget.model;
     return normalizeKg(
@@ -271,6 +281,23 @@ class _WeightEntryFormState extends State<WeightEntryForm> {
   void initState() {
     super.initState();
     _at = widget.entry?.date ?? widget.at;
+    // 首屏那张卡常驻在 IndexedStack 里、State 不销毁，别的入口（体重页、
+    // 语音、撤销条）改了数据它不会自己重建，所以跟着仓储走。
+    widget.model.addListener(_onModelChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.model.removeListener(_onModelChanged);
+    super.dispose();
+  }
+
+  /// 别处记/删了体重：胶囊没被用户动过就跟到新的「上次的值」。
+  void _onModelChanged() {
+    if (!mounted || widget.entry != null || _picked) return;
+    final latest = _latestKg();
+    if (latest == _kg) return;
+    setState(() => _kg = latest);
   }
 
   DateTime get _now => widget.model.now;
@@ -344,7 +371,10 @@ class _WeightEntryFormState extends State<WeightEntryForm> {
       anchor: anchor,
       initial: _kg,
       last: widget.model.repo.latestWeightKg(),
-      onChanged: (kg) => setState(() => _kg = kg),
+      onChanged: (kg) => setState(() {
+        _picked = true;
+        _kg = kg;
+      }),
     );
   }
 
@@ -361,6 +391,8 @@ class _WeightEntryFormState extends State<WeightEntryForm> {
     if (!go || !mounted) return;
 
     final editing = widget.entry;
+    // 存下去的这条就是新的「上次的值」：之后别处再改，胶囊照样跟。
+    _picked = false;
     final id = model.saveWeight(at: at, kg: value, id: editing?.id);
     final messenger = ScaffoldMessenger.of(context);
     setState(() {
